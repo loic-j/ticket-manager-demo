@@ -2,7 +2,23 @@
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "permissions": {
     "allow": [
-      "Bash"
+      "Bash",
+      "Read",
+      "Edit",
+      "Write",
+      "NotebookEdit",
+      "Glob",
+      "Grep",
+      "WebFetch",
+      "WebSearch",
+      "Agent",
+      "Skill",
+      "TodoWrite",
+      "Artifact",
+      "Monitor",
+      "EnterWorktree",
+      "ExitWorktree",
+      "ScheduleWakeup"
     ],
     "ask": [
       "Bash(rm -rf *)",

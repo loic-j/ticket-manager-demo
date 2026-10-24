@@ -1,5 +1,7 @@
 import type { IdTokenClaims } from '@logto/next/server-actions';
+import { Suspense } from 'react';
 import { signOutAction } from '@/lib/auth-actions';
+import { NotificationsBadge } from './notifications-badge';
 
 /** Human-readable label for the signed-in user; the Logto id is the last resort. */
 export function userLabel(claims?: IdTokenClaims): string {
@@ -12,11 +14,16 @@ export function UserBar({ claims }: { claims?: IdTokenClaims }) {
       <span>
         Signed in as <strong>{userLabel(claims)}</strong>
       </span>
-      <form action={signOutAction}>
-        <button type="submit" className="underline">
-          Sign out
-        </button>
-      </form>
+      <div className="flex items-center gap-4">
+        <Suspense fallback={<span className="text-zinc-500">Notifications</span>}>
+          <NotificationsBadge />
+        </Suspense>
+        <form action={signOutAction}>
+          <button type="submit" className="underline">
+            Sign out
+          </button>
+        </form>
+      </div>
     </div>
   );
 }

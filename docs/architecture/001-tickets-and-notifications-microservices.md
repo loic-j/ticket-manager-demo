@@ -1,6 +1,6 @@
 # Plan 001 - Tickets and Notifications microservices (BFF = Next.js)
 
-Status: accepted (phases 0-3 done 2026-10-24, broker: RabbitMQ) · Date: 2026-10-24 · Scope: learning-oriented but production-shaped
+Status: accepted (phases 0-4 done 2026-10-24, broker: RabbitMQ; phase 5 optional) · Date: 2026-10-24 · Scope: learning-oriented but production-shaped
 
 ## 1. Context and goals
 

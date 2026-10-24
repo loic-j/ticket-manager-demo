@@ -1,6 +1,6 @@
 # Plan 001 - Tickets and Notifications microservices (BFF = Next.js)
 
-Status: accepted (phase 0 done 2026-10-24, broker decision pending) · Date: 2026-10-24 · Scope: learning-oriented but production-shaped
+Status: accepted (phases 0-1 done 2026-10-24, broker: RabbitMQ) · Date: 2026-10-24 · Scope: learning-oriented but production-shaped
 
 ## 1. Context and goals
 
@@ -190,8 +190,8 @@ Estimated size: phases 0–2 touch mostly existing code; phase 3 is the largest 
 
 ## 7. Open questions for the owner
 
-1. Broker choice confirmed as RabbitMQ (alternative: NATS JetStream)?
-2. Keep the port plan `3001` tickets, `3002` notifications, `5672/15672` RabbitMQ, `5434`
-   notifications-db?
-3. Should the email also go to assignees once assignment exists, or only to the creator for now?
+1. ~~Broker choice~~ RabbitMQ confirmed (Kafka and NATS compared on 2026-10-24).
+2. ~~Ports~~ confirmed: `3001` tickets, `3002` notifications, `5672/15672` RabbitMQ, `5434`
+   notifications-db (all free on the host).
+3. ~~Email recipients~~ creator only for now.
 4. Do we rename `apps/tickets-service` now (clearer) or keep the name to reduce churn?

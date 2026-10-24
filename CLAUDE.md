@@ -39,10 +39,12 @@ every edited file through a hook; do not hand-format.
 - **Contract first**: every HTTP payload is a Zod schema in `packages/contracts`; types are inferred
   (`z.infer` / `z.input` / `z.output`). Never declare a DTO type by hand in an app. The API validates
   with NestJS 12 Standard Schema support: `@Body({ schema })`, `@Param('id', { schema })`.
-- **Clean architecture in the API** (`apps/tickets-service/src/<context>/`): `domain/` has no NestJS, Prisma or
-  HTTP import; `application/` depends on domain ports only; `infrastructure/` implements the ports;
-  `presentation/` is the only layer with HTTP concerns. Domain errors are mapped to HTTP by a filter
-  in `presentation/`, never thrown as `HttpException` from a service.
+- **Clean architecture + CQRS in the services** (`apps/<service>/src/<context>/`): `domain/` has no
+  NestJS, Prisma or HTTP import and exposes pure transitions returning `{ state, events }`;
+  `application/commands` handlers use the write port only, `application/queries` handlers use the
+  read port only and return API views; `infrastructure/` implements the ports; `presentation/`
+  controllers only validate and dispatch to `CommandBus` / `QueryBus` (never inject a repository).
+  Domain errors are mapped to HTTP by a filter in `presentation/`, never thrown as `HttpException`.
 - **Ports are injection tokens**: a TS interface does not exist at runtime, so each port exports a
   `Symbol`/string token (`TICKET_REPOSITORY`) and the module binds it. Tests override the token.
 - **Auth**: every service route is protected by the global `AccessTokenGuard` from

@@ -19,10 +19,16 @@ caller names files or a context folder, review those instead. Read `CLAUDE.md` a
 1. **Layer dependencies** inside `src/<context>/`:
    - `domain/` imports nothing from `@nestjs/*`, `express`, `../generated/prisma`, `@prisma/*`,
      or from `application/`, `infrastructure/`, `presentation/`.
-   - `application/` imports only `domain/` and `@nestjs/common` for `@Injectable`/`@Inject`.
+   - `application/` imports only `domain/`, `@ticketmanager/contracts`, `@nestjs/common`
+     (`@Inject`) and `@nestjs/cqrs` (handler decorators, buses).
    - `presentation/` never imports `infrastructure/` or Prisma types.
-2. **Ports**: every repository/port in `domain/` exports a token (`Symbol` or string) and the
-   module binds it with `{ provide: TOKEN, useClass }`. Services inject by token, not by class.
+2. **Ports**: every port (`domain/*.repository.ts`, `application/ports/*`) exports a token
+   (`Symbol` or string) and the module binds it with `{ provide: TOKEN, useClass }`. Handlers
+   inject by token, not by class.
+   2b. **CQRS**: controllers inject only `CommandBus` / `QueryBus`; command handlers use the write
+   port only and return ids or void; query handlers use the read port only and return contract
+   views; `domain/` never imports `@nestjs/cqrs`; events are published by handlers, not by the
+   domain or the controller.
 3. **Errors**: `domain/` throws domain errors; `presentation/` maps them to HTTP in a filter.
    No `HttpException` subclass thrown from `application/` or `domain/`.
 4. **Contracts**: request/response types come from `@ticketmanager/contracts` schemas, validated via

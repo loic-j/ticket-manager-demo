@@ -53,4 +53,34 @@ describe('Tickets (e2e)', () => {
       .set('Authorization', bearer)
       .expect(400);
   });
+
+  it('PATCH and DELETE go through the command side', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/tickets')
+      .set('Authorization', bearer)
+      .send({ title: 'To update' })
+      .expect(201);
+    const { id } = created.body as Ticket;
+
+    const other = await auth.bearer({ sub: 'user_other' });
+    const updated = await request(app.getHttpServer())
+      .patch(`/tickets/${id}`)
+      .set('Authorization', other)
+      .send({ status: 'in_progress' })
+      .expect(200);
+    expect(updated.body).toMatchObject({
+      status: 'in_progress',
+      createdBy: 'user_test',
+      updatedBy: 'user_other',
+    });
+
+    await request(app.getHttpServer())
+      .delete(`/tickets/${id}`)
+      .set('Authorization', bearer)
+      .expect(204);
+    await request(app.getHttpServer())
+      .get(`/tickets/${id}`)
+      .set('Authorization', bearer)
+      .expect(404);
+  });
 });

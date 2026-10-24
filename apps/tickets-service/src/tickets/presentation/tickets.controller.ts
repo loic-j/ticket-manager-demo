@@ -9,6 +9,7 @@ import {
   Post,
   UseFilters,
 } from '@nestjs/common';
+import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import {
   createTicketSchema,
   ticketIdSchema,
@@ -19,44 +20,62 @@ import {
   type UpdateTicketDto,
 } from '@ticketmanager/contracts';
 import { CurrentUser } from '@ticketmanager/nest-common';
-import { TicketsService } from '../application/tickets.service.js';
+import {
+  CreateTicketCommand,
+  DeleteTicketCommand,
+  UpdateTicketCommand,
+} from '../application/commands/index.js';
+import { GetTicketQuery, ListTicketsQuery } from '../application/queries/index.js';
 import { TicketErrorsFilter } from './ticket-errors.filter.js';
 
+/** HTTP adapter: validates, dispatches commands/queries, never touches a repository. */
 @Controller('tickets')
 @UseFilters(TicketErrorsFilter)
 export class TicketsController {
-  constructor(private readonly ticketsService: TicketsService) {}
+  constructor(
+    private readonly commandBus: CommandBus,
+    private readonly queryBus: QueryBus,
+  ) {}
 
   @Get()
   findAll(): Promise<Ticket[]> {
-    return this.ticketsService.findAll();
+    return this.queryBus.execute<ListTicketsQuery, Ticket[]>(new ListTicketsQuery());
   }
 
   @Get(':id')
   findOne(@Param('id', { schema: ticketIdSchema }) id: string): Promise<Ticket> {
-    return this.ticketsService.findOne(id);
+    return this.queryBus.execute<GetTicketQuery, Ticket>(new GetTicketQuery(id));
   }
 
   @Post()
-  create(
+  async create(
     @Body({ schema: createTicketSchema }) dto: CreateTicketDto,
     @CurrentUser() user: AuthUser,
   ): Promise<Ticket> {
-    return this.ticketsService.create(dto, user.sub);
+    const id = await this.commandBus.execute<CreateTicketCommand, string>(
+      new CreateTicketCommand(dto, user.sub),
+    );
+    return this.queryBus.execute<GetTicketQuery, Ticket>(new GetTicketQuery(id));
   }
 
   @Patch(':id')
-  update(
+  async update(
     @Param('id', { schema: ticketIdSchema }) id: string,
     @Body({ schema: updateTicketSchema }) dto: UpdateTicketDto,
     @CurrentUser() user: AuthUser,
   ): Promise<Ticket> {
-    return this.ticketsService.update(id, dto, user.sub);
+    await this.commandBus.execute<UpdateTicketCommand, void>(
+      new UpdateTicketCommand(id, dto, user.sub),
+    );
+    return this.queryBus.execute<GetTicketQuery, Ticket>(new GetTicketQuery(id));
   }
 
   @Delete(':id')
   @HttpCode(204)
-  remove(@Param('id', { schema: ticketIdSchema }) id: string): Promise<void> {
-    return this.ticketsService.remove(id);
+  async remove(
+    @Param('id', { schema: ticketIdSchema }) id: string,
+    @CurrentUser() user: AuthUser,
+  ): Promise<void> {
+    await this.commandBus.execute<DeleteTicketCommand, void>(new DeleteTicketCommand(id, user.sub));
   }
 }

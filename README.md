@@ -115,22 +115,29 @@ with an email address without any external mail provider. One-time console setup
 Next steps: `tickets:read` / `tickets:write` permissions on the API resource plus Logto roles
 (RBAC) with a `@RequireScopes()` decorator.
 
-## API architecture
+## API architecture (clean architecture + CQRS)
 
-Each bounded context under `apps/tickets-service/src/` follows a light clean-architecture layout:
+Each bounded context under `apps/tickets-service/src/` follows this layout:
 
 ```
 tickets/
-  domain/           Ticket model, TicketRepository port, domain errors. No NestJS, no HTTP.
-  application/      TicketsService: use cases, depends on the port only.
-  infrastructure/   Adapters implementing the port: PrismaTicketRepository (PostgreSQL), InMemoryTicketRepository (tests).
-  presentation/     HTTP controller and the filter mapping domain errors to HTTP status codes.
-  tickets.module.ts Composition root: binds TICKET_REPOSITORY to the chosen adapter.
+  domain/             Ticket model + pure transitions returning domain events, TicketRepository
+                      (write port), domain events, domain errors. No NestJS, no HTTP, no Prisma.
+  application/
+    commands/         CreateTicket / UpdateTicket / DeleteTicket commands + handlers (write port only)
+    queries/          ListTickets / GetTicket queries + handlers (read port only, return API views)
+    ports/            TicketReadRepository (read side)
+  infrastructure/     PrismaTicketRepository (write), PrismaTicketReadRepository (read),
+                      InMemoryTicketRepository (both ports, used by tests)
+  presentation/       HTTP controller dispatching to CommandBus / QueryBus, error filter
+  tickets.module.ts   Composition root: CqrsModule, handlers, port → adapter bindings
 ```
 
-Request validation happens at the boundary with the Zod schemas from `@ticketmanager/contracts`, so
-DTO types are shared with the web app. To change the storage, add an adapter in `infrastructure/`
-and change the binding in `tickets.module.ts`; nothing else moves.
+Commands return ids; the controller reads the result back through a query. Domain transitions
+return `{ ticket, events }`; handlers persist the state and publish the events (in-process today,
+transactional outbox in the next phase). Request validation happens at the boundary with the Zod
+schemas from `@ticketmanager/contracts`. To change the storage, add adapters in `infrastructure/`
+and rebind the ports in `tickets.module.ts`; nothing else moves.
 
 ## Database (Prisma + PostgreSQL)
 

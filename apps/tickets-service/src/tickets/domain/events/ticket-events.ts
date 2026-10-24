@@ -1,0 +1,35 @@
+import type { Ticket } from '../ticket.js';
+
+/**
+ * Domain events raised by the ticket aggregate. Plain classes (the CQRS EventBus dispatches by
+ * constructor) with no framework import so the domain stays independent.
+ */
+export class TicketCreatedEvent {
+  constructor(readonly ticket: Ticket) {}
+}
+
+export class TicketUpdatedEvent {
+  constructor(
+    readonly ticket: Ticket,
+    /** Keys of the fields that changed, e.g. `['title', 'priority']`. */
+    readonly changedFields: readonly string[],
+  ) {}
+}
+
+export class TicketStatusChangedEvent {
+  constructor(
+    readonly ticket: Ticket,
+    readonly from: Ticket['status'],
+    readonly to: Ticket['status'],
+  ) {}
+}
+
+export class TicketDeletedEvent {
+  constructor(
+    readonly ticketId: string,
+    readonly deletedBy: string,
+  ) {}
+}
+
+export type TicketDomainEvent =
+  TicketCreatedEvent | TicketUpdatedEvent | TicketStatusChangedEvent | TicketDeletedEvent;

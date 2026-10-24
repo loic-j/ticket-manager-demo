@@ -6,6 +6,7 @@ import { TICKETS_API_RESOURCE } from '@ticketmanager/contracts';
 import { JwtVerifier, loadAuthConfig, toAuthUser } from '@ticketmanager/nest-common';
 import { AppModule } from '../../src/app.module.js';
 import { PrismaService } from '../../src/database/prisma.service.js';
+import { TICKET_READ_REPOSITORY } from '../../src/tickets/application/ports/ticket-read.repository.js';
 import { TICKET_REPOSITORY } from '../../src/tickets/domain/ticket.repository.js';
 import { InMemoryTicketRepository } from '../../src/tickets/infrastructure/in-memory-ticket.repository.js';
 
@@ -70,11 +71,15 @@ export class TestAuth {
    * in-memory ticket store, so e2e tests need neither Logto nor PostgreSQL.
    */
   async createApp(): Promise<INestApplication<App>> {
+    // One in-memory instance for both ports so commands are visible to queries.
+    const store = new InMemoryTicketRepository();
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(JwtVerifier)
       .useValue(this.verifier)
       .overrideProvider(TICKET_REPOSITORY)
-      .useClass(InMemoryTicketRepository)
+      .useValue(store)
+      .overrideProvider(TICKET_READ_REPOSITORY)
+      .useValue(store)
       // Nothing touches the database once the repository is in memory.
       .overrideProvider(PrismaService)
       .useValue({})

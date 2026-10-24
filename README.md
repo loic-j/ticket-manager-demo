@@ -1,11 +1,13 @@
 # ticketmanager3
 
-pnpm + Turborepo monorepo: a Next.js BFF, a NestJS tickets service and shared typed contracts.
+pnpm + Turborepo monorepo: a Next.js BFF, NestJS microservices (tickets, notifications) talking
+through RabbitMQ, and shared typed contracts.
 The microservices roadmap lives in `docs/architecture/`.
 
 ```
 apps/
-  tickets-service/  NestJS 12 (ESM, Vitest, oxlint, Prisma), clean architecture → http://localhost:3001
+  tickets-service/        NestJS 12: tickets API, CQRS, transactional outbox → http://localhost:3001
+  notifications-service/  NestJS 12: consumes ticket events, emails, inbox API → http://localhost:3002
   web/        Next.js 16 (App Router, Tailwind 4, ESLint) → http://localhost:3000
 infra/
   docker-compose.yml         Logto + its PostgreSQL, tickets PostgreSQL, RabbitMQ, Mailpit (+ apps under profile "apps")
@@ -162,6 +164,27 @@ by `BROKER_TIMEOUT_MS`.
 `src/messaging/infrastructure/testing.ts` provides in-memory doubles; e2e tests run without
 database or broker, `pnpm --filter @ticketmanager/tickets-service test:int` exercises the real
 relay against PostgreSQL and RabbitMQ.
+
+### notifications-service (consumer)
+
+`apps/notifications-service` binds the quorum queue `notifications.tickets` to `ticket.#`,
+acks a message only after `HandleTicketEventCommand` committed the notification, nacks with a
+backoff on failure, and lets the broker dead-letter after 5 deliveries to
+`ticketmanager.events.dlx` (queue `notifications.tickets.dead`). Emails are sent after the commit
+and retried by a periodic job (`EMAIL_MAX_ATTEMPTS`), so a Logto or SMTP outage delays them
+instead of losing them. The handler is
+idempotent through an **inbox** table (`processed_events`, claimed in the same transaction as the
+notification row), so the at-least-once delivery never produces a second notification or email.
+`ticket.created` and `ticket.status-changed` notify the ticket creator; the recipient's email is
+resolved through the Logto Management API with a machine-to-machine token (or
+`NOTIFICATIONS_DEV_FALLBACK_EMAIL` locally) and sent over SMTP to Mailpit. The service also
+exposes `GET /notifications` and `POST /notifications/:id/read`, scoped to the caller, for the
+web inbox.
+
+Logto setup for this service (once): **API resources → Create** `https://notifications.ticketmanager.local`
+(the web app requests tokens for it); optionally **Applications → Machine-to-machine** with the
+_Logto Management API access_ role, then put its App ID / secret in
+`apps/notifications-service/.env` (`LOGTO_M2M_APP_ID`, `LOGTO_M2M_APP_SECRET`) and `infra/.env`.
 
 ## Database (Prisma + PostgreSQL)
 

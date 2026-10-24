@@ -1,8 +1,9 @@
 # ticketmanager3
 
-pnpm + Turborepo monorepo: NestJS 12 tickets service (`apps/tickets-service`), Next.js 16 BFF
-(`apps/web`), shared Zod contract (`packages/contracts`), shared NestJS auth (`packages/nest-common`),
-Logto + PostgreSQL + Mailpit in Docker (`infra/`). Microservices roadmap: `docs/architecture/`.
+pnpm + Turborepo monorepo: NestJS 12 services (`apps/tickets-service`, `apps/notifications-service`)
+integrated through RabbitMQ, Next.js 16 BFF (`apps/web`), shared packages (`contracts` = HTTP
+Zod schemas, `events` = integration events, `nest-common` = auth), Logto + PostgreSQL + RabbitMQ +
+Mailpit in Docker (`infra/`). Roadmap: `docs/architecture/`.
 Architecture, setup and design notes live in `README.md` and `docs/`; this file holds the rules and
 commands that are not obvious from the code.
 
@@ -14,12 +15,12 @@ messages. Replies to the user may be in their language.
 ## Commands (run from the repo root)
 
 ```bash
-pnpm infra:up                      # Logto + logto-db + tickets-db + rabbitmq + mailpit (Docker Desktop)
+pnpm infra:up                      # Logto, logto-db, tickets-db, notifications-db, rabbitmq, mailpit
 pnpm dev                           # all apps in watch mode (needs infra:up first)
 pnpm build | check-types | lint | test | test:e2e   # Turbo, every package
 pnpm turbo run test --filter=@ticketmanager/tickets-service     # one package
-pnpm --filter @ticketmanager/tickets-service db:migrate         # create/apply a Prisma migration (dev DB)
-pnpm --filter @ticketmanager/tickets-service test:int           # Prisma adapter test against tickets-db
+pnpm --filter @ticketmanager/<service> db:migrate               # create/apply a Prisma migration (dev DB)
+pnpm --filter @ticketmanager/<service> test:int                 # DB/broker-backed tests of one service
 pnpm docker:build | docker:up | docker:down         # images / full stack in Docker
 pnpm format                        # prettier --write on the whole repo
 ```
@@ -58,9 +59,11 @@ every edited file through a hook; do not hand-format.
   once in `packages/events` with `defineEvent`; a breaking change is a new version.
 - **Prisma adapters use `this.prisma.db.<model>`**, never `this.prisma.<model>`, so they join the
   ambient transaction of the unit of work.
-- **Databases stay separate**: Logto owns `logto-db`; tickets own `tickets-db`. Never point the
-  app at Logto's database.
-- **Prisma**: after any change to `apps/tickets-service/prisma/schema.prisma`, run the `db-migration` skill
+- **Databases stay separate**: one PostgreSQL per service (`tickets-db`, `notifications-db`) and
+  one for Logto. A service never reads another service's database; it consumes its events.
+- **Consumers are idempotent**: claim the event id in the inbox (`PROCESSED_EVENTS`) inside the
+  same unit of work as the side effect; unknown event types are acked and ignored.
+- **Prisma**: after any change to a service's `prisma/schema.prisma`, run the `db-migration` skill
   (generate + migration). The generated client in `src/generated/` is gitignored and produced by
   the `db:generate` Turbo task; never edit or commit it.
 - **ESM everywhere in the API**: relative imports end with `.js`; `apps/tickets-service` is `"type": "module"`.

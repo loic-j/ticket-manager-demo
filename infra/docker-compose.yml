@@ -3,7 +3,8 @@
 # docker-compose.docker.yml for the Logto override).
 #   pnpm infra:up / infra:down / infra:logs      pnpm docker:build / docker:up / docker:down
 # Console: http://localhost:3302   OIDC endpoint: http://localhost:3301
-# Mailpit UI: http://localhost:8025   tickets-db: localhost:5433   RabbitMQ UI: http://localhost:15672
+# Mailpit UI: http://localhost:8025   RabbitMQ UI: http://localhost:15672
+# tickets-db: localhost:5433   notifications-db: localhost:5434
 name: ticketmanager
 
 services:
@@ -65,6 +66,23 @@ services:
       timeout: 5s
       retries: 10
 
+  notifications-db:
+    image: postgres:17-alpine
+    user: postgres
+    environment:
+      POSTGRES_USER: notifications
+      POSTGRES_PASSWORD: notifications
+      POSTGRES_DB: notifications
+    ports:
+      - '5434:5432'
+    volumes:
+      - notifications-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U notifications -d notifications']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   # Message broker between services. Management UI: http://localhost:15672 (ticketmanager / ticketmanager)
   rabbitmq:
     image: rabbitmq:4.4-management-alpine
@@ -119,6 +137,49 @@ services:
       LOGTO_API_RESOURCE: https://api.ticketmanager.local
       RABBITMQ_URL: amqp://ticketmanager:ticketmanager@rabbitmq:5672
 
+  notifications-migrate:
+    profiles: ['apps']
+    build:
+      context: ..
+      dockerfile: apps/notifications-service/Dockerfile
+      target: migrate
+    depends_on:
+      notifications-db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://notifications:notifications@notifications-db:5432/notifications
+
+  notifications-service:
+    profiles: ['apps']
+    build:
+      context: ..
+      dockerfile: apps/notifications-service/Dockerfile
+    depends_on:
+      notifications-migrate:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+      logto:
+        condition: service_started
+    ports:
+      - '3002:3002'
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    env_file:
+      - path: ./.env
+        required: true
+    environment:
+      PORT: 3002
+      CORS_ORIGIN: http://localhost:3000
+      DATABASE_URL: postgresql://notifications:notifications@notifications-db:5432/notifications
+      LOGTO_ENDPOINT: http://host.docker.internal:3301
+      LOGTO_API_RESOURCE: https://notifications.ticketmanager.local
+      RABBITMQ_URL: amqp://ticketmanager:ticketmanager@rabbitmq:5672
+      SMTP_URL: smtp://mailpit:1025
+      MAIL_FROM: Ticket Manager <noreply@ticketmanager.local>
+
   web:
     profiles: ['apps']
     build:
@@ -126,6 +187,7 @@ services:
       dockerfile: apps/web/Dockerfile
     depends_on:
       - tickets-service
+      - notifications-service
     ports:
       - '3000:3000'
     extra_hosts:
@@ -135,10 +197,12 @@ services:
         required: true
     environment:
       TICKETS_API_URL: http://tickets-service:3001
+      NOTIFICATIONS_API_URL: http://notifications-service:3002
       BASE_URL: http://localhost:3000
       LOGTO_ENDPOINT: http://host.docker.internal:3301
 
 volumes:
   logto-db-data:
   tickets-db-data:
+  notifications-db-data:
   rabbitmq-data:

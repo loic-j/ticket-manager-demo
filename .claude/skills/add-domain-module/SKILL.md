@@ -1,10 +1,11 @@
 ---
 name: add-domain-module
-description: Scaffold a new bounded context in apps/tickets-service following the project's clean-architecture layout (domain port + errors, application service, in-memory and Prisma adapters, presentation controller + error filter, module binding, shared Zod schemas, unit and e2e tests). Use when adding a new resource/aggregate to the API.
+description: Scaffold a new bounded context in a NestJS service (apps/*-service) following the project's clean-architecture layout (domain port + errors, application service, in-memory and Prisma adapters, presentation controller + error filter, module binding, shared Zod schemas, unit and e2e tests). Use when adding a new resource/aggregate to the API.
 argument-hint: <context-name> (singular noun, e.g. comment)
 ---
 
-Scaffold the bounded context `$ARGUMENTS` by mirroring `apps/tickets-service/src/tickets/` exactly. Read that
+Scaffold the bounded context `$ARGUMENTS` (optionally prefixed by the service directory, default
+`tickets-service`) by mirroring `apps/tickets-service/src/tickets/` exactly. Read that
 folder first; do not invent a different structure.
 
 1. **Contract** in `packages/contracts/src/<plural>/`: `<name>.schema.ts` with the entity schema,

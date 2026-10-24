@@ -33,6 +33,7 @@ COPY --from=pruner /repo/out/pnpm-lock.yaml ./pnpm-lock.yaml
 RUN pnpm install --frozen-lockfile --prod
 COPY --from=builder /repo/packages/contracts/dist ./packages/contracts/dist
 COPY --from=builder /repo/packages/nest-common/dist ./packages/nest-common/dist
+COPY --from=builder /repo/packages/events/dist ./packages/events/dist
 COPY --from=builder /repo/apps/tickets-service/dist ./apps/tickets-service/dist
 USER node
 EXPOSE 3001

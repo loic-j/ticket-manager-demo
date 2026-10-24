@@ -4,3 +4,4 @@
  * and are never fetched.
  */
 export const TICKETS_API_RESOURCE = 'https://api.ticketmanager.local';
+export const NOTIFICATIONS_API_RESOURCE = 'https://notifications.ticketmanager.local';

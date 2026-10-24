@@ -1,0 +1,58 @@
+// Notifications database (separate from tickets and Logto). Run `pnpm db:migrate` after editing.
+
+generator client {
+  provider               = "prisma-client"
+  output                 = "../src/generated/prisma"
+  runtime                = "nodejs"
+  moduleFormat           = "esm"
+  generatedFileExtension = "ts"
+  importFileExtension    = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Mirror of NOTIFICATION_KINDS / NOTIFICATION_DELIVERY_STATUSES in @ticketmanager/contracts.
+enum NotificationKind {
+  ticket_created
+  ticket_status_changed
+}
+
+enum DeliveryStatus {
+  pending
+  sent
+  failed
+}
+
+model Notification {
+  id         String           @id @db.Uuid
+  /// Logto user id (`sub`) of the recipient.
+  userId     String           @map("user_id")
+  kind       NotificationKind
+  title      String           @db.VarChar(200)
+  body       String
+  ticketId   String           @map("ticket_id") @db.Uuid
+  /// Id of the integration event that produced this notification.
+  eventId    String           @map("event_id") @db.Uuid
+  readAt     DateTime?        @map("read_at")
+  email      DeliveryStatus   @default(pending)
+  emailError String?          @map("email_error")
+  /// Delivery attempts so far; the retry job gives up after EMAIL_MAX_ATTEMPTS.
+  emailAttempts    Int       @default(0) @map("email_attempts")
+  emailLastTriedAt DateTime? @map("email_last_tried_at")
+  createdAt  DateTime         @default(now()) @map("created_at")
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([email, emailAttempts, createdAt], map: "notifications_email_retry_idx")
+  @@map("notifications")
+}
+
+/// Inbox: ids of integration events already handled, for at-least-once delivery.
+model ProcessedEvent {
+  eventId     String   @id @map("event_id") @db.Uuid
+  type        String   @db.VarChar(100)
+  processedAt DateTime @default(now()) @map("processed_at")
+
+  @@map("processed_events")
+}

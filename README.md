@@ -4,10 +4,11 @@ pnpm + Turborepo monorepo with a NestJS API and a Next.js web app sharing one ty
 
 ```
 apps/
-  api/        NestJS 12 (ESM, Vitest, oxlint), clean architecture → http://localhost:3001
+  api/        NestJS 12 (ESM, Vitest, oxlint, Prisma), clean architecture → http://localhost:3001
   web/        Next.js 16 (App Router, Tailwind 4, ESLint) → http://localhost:3000
 infra/
-  logto/      docker-compose Logto + PostgreSQL (auth)
+  docker-compose.yml         Logto + its PostgreSQL + the tickets PostgreSQL (+ api/web under profile "apps")
+  docker-compose.docker.yml  Override for the full-Docker mode (Logto exposed as host.docker.internal)
 packages/
   shared/             @ticketmanager/shared — Zod schemas + inferred types (the API contract)
   typescript-config/  @ticketmanager/typescript-config — shared tsconfig presets
@@ -33,6 +34,8 @@ and caches results.
 | `pnpm test`        | Vitest unit tests (api, shared)                         |
 | `pnpm test:e2e`    | API e2e tests (supertest)                               |
 | `pnpm format`      | Prettier on the whole repo                              |
+
+Day-to-day: `pnpm infra:up` once, then `pnpm dev`.
 
 Target a single package with a filter, e.g. `pnpm turbo run dev --filter=@ticketmanager/api`,
 or run its own scripts with `pnpm --filter @ticketmanager/web dev`.
@@ -76,7 +79,7 @@ The e2e tests replace the verifier with a local key pair: they run without Logto
 
 ### One-time setup
 
-1. Start Logto: `pnpm logto:up` (Docker Desktop required). Wait until
+1. Start the infrastructure: `pnpm infra:up` (Docker Desktop required). Wait until
    `curl localhost:3301/oidc/.well-known/openid-configuration` responds.
 2. Open the console at `http://localhost:3302` and create the admin account (first launch).
 3. **Applications → Create application → Traditional web → Next.js (App Router)**, name
@@ -92,10 +95,10 @@ The e2e tests replace the verifier with a local key pair: they run without Logto
    `LOGTO_COOKIE_SECRET` of 32+ characters (`openssl rand -base64 32`).
 7. `pnpm dev`, open `http://localhost:3000`, click _Sign in_.
 
-Stop with `pnpm logto:down` (data persists in the Docker volume `logto-pg-data`).
+Stop with `pnpm infra:down` (data persists in the Docker volumes `logto-db-data` and `tickets-db-data`).
 
 Next steps: `tickets:read` / `tickets:write` permissions on the API resource plus Logto roles
-(RBAC) with a `@RequireScopes()` decorator; a database-backed `TicketRepository`.
+(RBAC) with a `@RequireScopes()` decorator.
 
 ## API architecture
 
@@ -105,14 +108,55 @@ Each bounded context under `apps/api/src/` follows a light clean-architecture la
 tickets/
   domain/           Ticket model, TicketRepository port, domain errors. No NestJS, no HTTP.
   application/      TicketsService: use cases, depends on the port only.
-  infrastructure/   Adapters implementing the port (InMemoryTicketRepository today).
+  infrastructure/   Adapters implementing the port: PrismaTicketRepository (PostgreSQL), InMemoryTicketRepository (tests).
   presentation/     HTTP controller and the filter mapping domain errors to HTTP status codes.
   tickets.module.ts Composition root: binds TICKET_REPOSITORY to the chosen adapter.
 ```
 
 Request validation happens at the boundary with the Zod schemas from `@ticketmanager/shared`, so
-DTO types are shared with the web app. To persist tickets, add an adapter in `infrastructure/`
+DTO types are shared with the web app. To change the storage, add an adapter in `infrastructure/`
 and change the binding in `tickets.module.ts`; nothing else moves.
+
+## Database (Prisma + PostgreSQL)
+
+Tickets live in their own PostgreSQL (`tickets-db`, `localhost:5433`), separate from Logto's.
+Prisma 7 with the `pg` driver adapter; schema in `apps/api/prisma/schema.prisma`, migrations
+committed in `apps/api/prisma/migrations/`, config in `apps/api/prisma.config.ts`. The generated
+client (`apps/api/src/generated/`) is gitignored and produced by the `db:generate` Turbo task,
+which every build / check / test task depends on.
+
+```bash
+pnpm infra:up                                   # tickets-db (and Logto)
+pnpm --filter @ticketmanager/api db:migrate     # apply migrations locally (dev) / create one after editing the schema
+pnpm --filter @ticketmanager/api db:deploy      # apply committed migrations (CI / prod)
+pnpm --filter @ticketmanager/api db:studio      # browse the data
+pnpm --filter @ticketmanager/api test:int       # integration test of the Prisma adapter (needs the DB)
+```
+
+`DATABASE_URL` is read from `apps/api/.env` (see `.env.example`). Unit and e2e tests never touch
+the database: the e2e helper swaps in `InMemoryTicketRepository`.
+
+## Docker
+
+`apps/api/Dockerfile` and `apps/web/Dockerfile` build from the repo root with `turbo prune`, so an
+image only contains its package and workspace dependencies. The api Dockerfile has two targets:
+`runner` (default) and `migrate`, which runs `prisma migrate deploy`. The web image uses Next.js
+standalone output. `pnpm build` is untouched; `pnpm docker:build` builds the images.
+
+`pnpm docker:up` runs the whole stack (databases, Logto, migrations, api, web) in Docker:
+
+- The browser and the containers must reach Logto under **one** name, and a container cannot
+  resolve `localhost` to your machine. The override `infra/docker-compose.docker.yml` therefore
+  exposes Logto as `http://host.docker.internal:3301` (console `:3302`), a name Docker Desktop
+  resolves from the host (Windows/macOS hosts file) and from containers.
+- The `web` container reads the Logto credentials from `infra/.env` (copy `infra/.env.example`,
+  same values as `apps/web/.env.local`). The app in Logto keeps `http://localhost:3000/callback`.
+- Stop with `pnpm docker:down`. To go back to the host dev mode, run `pnpm infra:up` again: it
+  recreates Logto with its `localhost` endpoints.
+
+Configuration is read at runtime from the environment (`API_URL`, `BASE_URL`, `LOGTO_*`,
+`DATABASE_URL`), so the same images work in both modes. Nothing in the web app uses
+`NEXT_PUBLIC_*` variables: the browser never calls the API or holds a token.
 
 ## Dependency versions
 

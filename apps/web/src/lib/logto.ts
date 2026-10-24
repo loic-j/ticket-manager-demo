@@ -7,7 +7,7 @@ const envSchema = z.object({
   LOGTO_APP_ID: z.string().min(1, 'LOGTO_APP_ID is required (Logto Console → Applications)'),
   LOGTO_APP_SECRET: z.string().min(1, 'LOGTO_APP_SECRET is required'),
   LOGTO_COOKIE_SECRET: z.string().min(32, 'LOGTO_COOKIE_SECRET must be at least 32 characters'),
-  NEXT_PUBLIC_BASE_URL: z.url().default('http://localhost:3000'),
+  BASE_URL: z.url().default('http://localhost:3000'),
 });
 
 let cached: LogtoNextConfig | undefined;
@@ -23,7 +23,7 @@ export function getLogtoConfig(): LogtoNextConfig {
     endpoint: env.LOGTO_ENDPOINT,
     appId: env.LOGTO_APP_ID,
     appSecret: env.LOGTO_APP_SECRET,
-    baseUrl: env.NEXT_PUBLIC_BASE_URL,
+    baseUrl: env.BASE_URL,
     cookieSecret: env.LOGTO_COOKIE_SECRET,
     cookieSecure: process.env.NODE_ENV === 'production',
     scopes: [UserScope.Email, UserScope.Profile],

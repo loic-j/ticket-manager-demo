@@ -15,3 +15,6 @@ catalog:
 allowBuilds:
   sharp: false
   unrs-resolver: false
+  # Prisma 7 with a driver adapter needs no native engine download.
+  prisma: false
+  '@prisma/engines': false

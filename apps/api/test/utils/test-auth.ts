@@ -5,6 +5,9 @@ import type { App } from 'supertest/types.js';
 import { AppModule } from '../../src/app.module.js';
 import { loadAuthConfig } from '../../src/auth/auth.config.js';
 import { JwtVerifier, toAuthUser } from '../../src/auth/jwt-verifier.js';
+import { PrismaService } from '../../src/database/prisma.service.js';
+import { TICKET_REPOSITORY } from '../../src/tickets/domain/ticket.repository.js';
+import { InMemoryTicketRepository } from '../../src/tickets/infrastructure/in-memory-ticket.repository.js';
 
 const ALG = 'ES256';
 
@@ -62,11 +65,19 @@ export class TestAuth {
     };
   }
 
-  /** Boots the full `AppModule` with the global pipe from `main.ts` and this fake verifier. */
+  /**
+   * Boots the full `AppModule` with the global pipe from `main.ts`, this fake verifier and an
+   * in-memory ticket store, so e2e tests need neither Logto nor PostgreSQL.
+   */
   async createApp(): Promise<INestApplication<App>> {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(JwtVerifier)
       .useValue(this.verifier)
+      .overrideProvider(TICKET_REPOSITORY)
+      .useClass(InMemoryTicketRepository)
+      // Nothing touches the database once the repository is in memory.
+      .overrideProvider(PrismaService)
+      .useValue({})
       .compile();
 
     const app = moduleRef.createNestApplication<INestApplication<App>>();

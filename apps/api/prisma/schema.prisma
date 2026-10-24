@@ -1,0 +1,41 @@
+// Tickets database (separate from Logto's). Run `pnpm db:migrate` after editing.
+
+generator client {
+  provider               = "prisma-client"
+  output                 = "../src/generated/prisma"
+  runtime                = "nodejs"
+  moduleFormat           = "esm"
+  generatedFileExtension = "ts"
+  importFileExtension    = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Mirror of TICKET_STATUSES / TICKET_PRIORITIES in @ticketmanager/shared.
+enum TicketStatus {
+  open
+  in_progress
+  resolved
+  closed
+}
+
+enum TicketPriority {
+  low
+  medium
+  high
+  urgent
+}
+
+model Ticket {
+  id          String         @id @default(uuid()) @db.Uuid
+  title       String         @db.VarChar(200)
+  description String         @default("")
+  status      TicketStatus   @default(open)
+  priority    TicketPriority @default(medium)
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  @@map("tickets")
+}

@@ -2,7 +2,9 @@ import { getAccessToken, getAccessTokenRSC } from '@logto/next/server-actions';
 import { API_RESOURCE_INDICATOR, type CreateTicketInput, type Ticket } from '@ticketmanager/shared';
 import { getLogtoConfig } from './logto';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+// Server-only: the browser never calls the API, so a plain (non NEXT_PUBLIC_) variable is used
+// and can be set at runtime, e.g. in Docker.
+const API_URL = process.env.API_URL ?? 'http://localhost:3001';
 
 export class ApiError extends Error {
   constructor(

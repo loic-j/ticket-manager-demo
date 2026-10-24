@@ -2,6 +2,7 @@
 node_modules/
 
 # build outputs
+apps/api/src/generated/
 dist/
 .next/
 out/

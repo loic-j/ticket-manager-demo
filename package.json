@@ -15,9 +15,13 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "clean": "turbo run clean && rm -rf node_modules",
-    "logto:up": "docker compose -f infra/logto/docker-compose.yml up -d",
-    "logto:down": "docker compose -f infra/logto/docker-compose.yml down",
-    "logto:logs": "docker compose -f infra/logto/docker-compose.yml logs -f logto"
+    "infra:up": "docker compose -f infra/docker-compose.yml up -d",
+    "infra:down": "docker compose -f infra/docker-compose.yml down",
+    "infra:logs": "docker compose -f infra/docker-compose.yml logs -f",
+    "docker:build": "docker compose -f infra/docker-compose.yml --profile apps build",
+    "docker:up": "docker compose -f infra/docker-compose.yml -f infra/docker-compose.docker.yml --profile apps up -d --build",
+    "docker:down": "docker compose -f infra/docker-compose.yml -f infra/docker-compose.docker.yml --profile apps down",
+    "docker:logs": "docker compose -f infra/docker-compose.yml -f infra/docker-compose.docker.yml --profile apps logs -f api web"
   },
   "devDependencies": {
     "prettier": "catalog:",

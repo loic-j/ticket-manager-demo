@@ -1,0 +1,8 @@
+# Override used by `pnpm docker:up` (full-Docker mode). Logto must be reachable under ONE name by
+# both the browser (on the host) and the api/web containers. `host.docker.internal` resolves on
+# Docker Desktop from the browser (Windows/macOS hosts file) and from containers.
+services:
+  logto:
+    environment:
+      ENDPOINT: http://host.docker.internal:3301
+      ADMIN_ENDPOINT: http://host.docker.internal:3302

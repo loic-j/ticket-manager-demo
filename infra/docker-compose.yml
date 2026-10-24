@@ -1,0 +1,110 @@
+# Local infrastructure. Default profile: Logto (auth) + its PostgreSQL + the tickets PostgreSQL.
+# Profile "apps" adds the api and web images (see docker-compose.docker.yml for the Logto override).
+#   pnpm infra:up / infra:down / infra:logs      pnpm docker:build / docker:up / docker:down
+# Console: http://localhost:3302   OIDC endpoint: http://localhost:3301   tickets-db: localhost:5433
+name: ticketmanager
+
+services:
+  logto:
+    image: svhd/logto:1.45
+    depends_on:
+      logto-db:
+        condition: service_healthy
+    entrypoint: ['sh', '-c', 'npm run cli db seed -- --swe && npm start']
+    # Logto listens directly on 3301/3302 (defaults are 3001/3002, taken by our API).
+    # Do NOT remap with ENDPOINT/ADMIN_ENDPOINT on localhost: Logto's CORS then sees two
+    # localhost admin origins and rejects both, which breaks the admin console.
+    ports:
+      - '3301:3301' # core / OIDC
+      - '3302:3302' # admin console
+    environment:
+      DB_URL: postgres://postgres:p0stgr3s@logto-db:5432/logto
+      PORT: 3301
+      ADMIN_PORT: 3302
+
+  logto-db:
+    image: postgres:17-alpine
+    user: postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: p0stgr3s
+    volumes:
+      - logto-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  tickets-db:
+    image: postgres:17-alpine
+    user: postgres
+    environment:
+      POSTGRES_USER: tickets
+      POSTGRES_PASSWORD: tickets
+      POSTGRES_DB: tickets
+    ports:
+      - '5433:5432'
+    volumes:
+      - tickets-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U tickets -d tickets']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api-migrate:
+    profiles: ['apps']
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+      target: migrate
+    depends_on:
+      tickets-db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://tickets:tickets@tickets-db:5432/tickets
+
+  api:
+    profiles: ['apps']
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    depends_on:
+      api-migrate:
+        condition: service_completed_successfully
+      logto:
+        condition: service_started
+    ports:
+      - '3001:3001'
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    environment:
+      PORT: 3001
+      CORS_ORIGIN: http://localhost:3000
+      DATABASE_URL: postgresql://tickets:tickets@tickets-db:5432/tickets
+      LOGTO_ENDPOINT: http://host.docker.internal:3301
+      LOGTO_API_RESOURCE: https://api.ticketmanager.local
+
+  web:
+    profiles: ['apps']
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+    depends_on:
+      - api
+    ports:
+      - '3000:3000'
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    env_file:
+      - path: ./.env
+        required: true
+    environment:
+      API_URL: http://api:3001
+      BASE_URL: http://localhost:3000
+      LOGTO_ENDPOINT: http://host.docker.internal:3301
+
+volumes:
+  logto-db-data:
+  tickets-db-data:

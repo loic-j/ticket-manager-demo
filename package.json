@@ -14,7 +14,10 @@
     "test:e2e": "turbo run test:e2e",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "clean": "turbo run clean && rm -rf node_modules"
+    "clean": "turbo run clean && rm -rf node_modules",
+    "logto:up": "docker compose -f infra/logto/docker-compose.yml up -d",
+    "logto:down": "docker compose -f infra/logto/docker-compose.yml down",
+    "logto:logs": "docker compose -f infra/logto/docker-compose.yml logs -f logto"
   },
   "devDependencies": {
     "prettier": "catalog:",

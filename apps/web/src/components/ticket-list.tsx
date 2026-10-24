@@ -1,11 +1,14 @@
 import type { Ticket } from '@ticketmanager/shared';
-import { ticketsApi } from '@/lib/api';
+import { ApiError, ticketsApi } from '@/lib/api';
 
 export async function TicketList() {
   let tickets: Ticket[];
   try {
     tickets = await ticketsApi.list();
   } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      return <p className="text-red-600">The API rejected the access token (401).</p>;
+    }
     return (
       <p className="text-red-600">
         Could not reach the API: {error instanceof Error ? error.message : String(error)}

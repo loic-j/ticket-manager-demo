@@ -1,27 +1,35 @@
-import { INestApplication, StandardSchemaValidationPipe } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
+import type { INestApplication } from '@nestjs/common';
 import type { Ticket } from '@ticketmanager/shared';
 import request from 'supertest';
-import { App } from 'supertest/types.js';
-import { AppModule } from '../src/app.module.js';
+import type { App } from 'supertest/types.js';
+import { TestAuth } from './utils/test-auth.js';
 
 describe('Tickets (e2e)', () => {
+  let auth: TestAuth;
   let app: INestApplication<App>;
+  let bearer: string;
+
+  beforeAll(async () => {
+    auth = await TestAuth.create();
+    bearer = await auth.bearer();
+  });
 
   beforeEach(async () => {
-    const moduleFixture = await Test.createTestingModule({ imports: [AppModule] }).compile();
-    app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(new StandardSchemaValidationPipe());
-    await app.init();
+    app = await auth.createApp();
   });
 
   afterEach(() => app.close());
 
   it('POST /tickets validates with the shared schema', async () => {
-    await request(app.getHttpServer()).post('/tickets').send({ title: '' }).expect(400);
+    await request(app.getHttpServer())
+      .post('/tickets')
+      .set('Authorization', bearer)
+      .send({ title: '' })
+      .expect(400);
 
     const res = await request(app.getHttpServer())
       .post('/tickets')
+      .set('Authorization', bearer)
       .send({ title: 'New ticket' })
       .expect(201);
 
@@ -30,7 +38,17 @@ describe('Tickets (e2e)', () => {
     expect(ticket.description).toBe('');
   });
 
+  it('GET /tickets/:id returns 404 for an unknown ticket', () => {
+    return request(app.getHttpServer())
+      .get('/tickets/2f6a3c4e-5b1d-4e8a-9c7f-1a2b3c4d5e6f')
+      .set('Authorization', bearer)
+      .expect(404);
+  });
+
   it('GET /tickets/:id rejects a non-UUID id', () => {
-    return request(app.getHttpServer()).get('/tickets/not-a-uuid').expect(400);
+    return request(app.getHttpServer())
+      .get('/tickets/not-a-uuid')
+      .set('Authorization', bearer)
+      .expect(400);
   });
 });

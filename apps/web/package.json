@@ -11,6 +11,7 @@
     "clean": "rm -rf .next"
   },
   "dependencies": {
+    "@logto/next": "^5.0.1",
     "@ticketmanager/shared": "workspace:*",
     "next": "16.4.2",
     "react": "19.3.0",

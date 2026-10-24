@@ -1,4 +1,14 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Patch,
+  Post,
+  UseFilters,
+} from '@nestjs/common';
 import {
   createTicketSchema,
   ticketIdSchema,
@@ -7,24 +17,26 @@ import {
   type Ticket,
   type UpdateTicketDto,
 } from '@ticketmanager/shared';
-import { TicketsService } from './tickets.service.js';
+import { TicketsService } from '../application/tickets.service.js';
+import { TicketErrorsFilter } from './ticket-errors.filter.js';
 
 @Controller('tickets')
+@UseFilters(TicketErrorsFilter)
 export class TicketsController {
   constructor(private readonly ticketsService: TicketsService) {}
 
   @Get()
-  findAll(): Ticket[] {
+  findAll(): Promise<Ticket[]> {
     return this.ticketsService.findAll();
   }
 
   @Get(':id')
-  findOne(@Param('id', { schema: ticketIdSchema }) id: string): Ticket {
+  findOne(@Param('id', { schema: ticketIdSchema }) id: string): Promise<Ticket> {
     return this.ticketsService.findOne(id);
   }
 
   @Post()
-  create(@Body({ schema: createTicketSchema }) dto: CreateTicketDto): Ticket {
+  create(@Body({ schema: createTicketSchema }) dto: CreateTicketDto): Promise<Ticket> {
     return this.ticketsService.create(dto);
   }
 
@@ -32,13 +44,13 @@ export class TicketsController {
   update(
     @Param('id', { schema: ticketIdSchema }) id: string,
     @Body({ schema: updateTicketSchema }) dto: UpdateTicketDto,
-  ): Ticket {
+  ): Promise<Ticket> {
     return this.ticketsService.update(id, dto);
   }
 
   @Delete(':id')
   @HttpCode(204)
-  remove(@Param('id', { schema: ticketIdSchema }) id: string): void {
-    this.ticketsService.remove(id);
+  remove(@Param('id', { schema: ticketIdSchema }) id: string): Promise<void> {
+    return this.ticketsService.remove(id);
   }
 }

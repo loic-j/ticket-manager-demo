@@ -5,14 +5,32 @@
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "env": ["NEXT_PUBLIC_API_URL"],
+      "env": [
+        "LOGTO_API_RESOURCE",
+        "LOGTO_APP_ID",
+        "LOGTO_APP_SECRET",
+        "LOGTO_COOKIE_SECRET",
+        "LOGTO_ENDPOINT",
+        "NEXT_PUBLIC_API_URL",
+        "NEXT_PUBLIC_BASE_URL"
+      ],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
     },
     "dev": {
       "dependsOn": ["^build"],
       "cache": false,
       "persistent": true,
-      "env": ["PORT", "CORS_ORIGIN", "NEXT_PUBLIC_API_URL"]
+      "env": [
+        "CORS_ORIGIN",
+        "LOGTO_API_RESOURCE",
+        "LOGTO_APP_ID",
+        "LOGTO_APP_SECRET",
+        "LOGTO_COOKIE_SECRET",
+        "LOGTO_ENDPOINT",
+        "NEXT_PUBLIC_API_URL",
+        "NEXT_PUBLIC_BASE_URL",
+        "PORT"
+      ]
     },
     "check-types": {
       "dependsOn": ["^build"]
@@ -21,11 +39,13 @@
       "dependsOn": ["^build"]
     },
     "test": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build"],
+      "env": ["LOGTO_ENDPOINT", "LOGTO_API_RESOURCE"]
     },
     "test:e2e": {
       "dependsOn": ["^build"],
-      "cache": false
+      "cache": false,
+      "env": ["LOGTO_ENDPOINT", "LOGTO_API_RESOURCE"]
     },
     "clean": {
       "cache": false

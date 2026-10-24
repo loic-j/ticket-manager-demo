@@ -34,6 +34,6 @@
 - Prisma 7 CLI: `migrate dev` needs a TTY for some changes (e.g. a unique column on a populated
   table); then write the SQL by hand in `prisma/migrations/<ts>_<name>/migration.sql` and run
   `prisma migrate deploy`. Drift check: `prisma migrate diff --from-config-datasource
---to-schema-datamodel prisma/schema.prisma --script` must print nothing.
+--to-schema prisma/schema.prisma --script` must print nothing.
 - Prisma: `prisma.config.ts` + `prisma/schema.prisma`; migrations are committed. Schema change →
   `db-migration` skill. Enum values must stay in sync with `TICKET_STATUSES` / `TICKET_PRIORITIES`.

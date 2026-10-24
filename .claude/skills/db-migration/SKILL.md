@@ -27,6 +27,6 @@ Create and verify a Prisma migration named `$ARGUMENTS` (kebab-case, required; a
 7. If `migrate dev` refuses because the shell is non-interactive, create the folder
    `prisma/migrations/$(date -u +%Y%m%d%H%M%S)_$ARGUMENTS/migration.sql` by hand, write the SQL
    Prisma would generate, run `prisma migrate deploy`, then confirm no drift with
-   `prisma migrate diff --from-config-datasource --to-schema-datamodel prisma/schema.prisma --script`.
+   `prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script`.
 8. Report the migration file name and the tables/columns it changes. Never run `migrate reset`
    or `db push` without an explicit request.

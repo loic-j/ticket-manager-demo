@@ -97,6 +97,19 @@ The e2e tests replace the verifier with a local key pair: they run without Logto
 
 Stop with `pnpm infra:down` (data persists in the Docker volumes `logto-db-data` and `tickets-db-data`).
 
+### Email sign-up (local)
+
+`pnpm infra:up` also starts [Mailpit](https://mailpit.axllent.org), a local SMTP server with a web
+inbox at `http://localhost:8025`. Logto sends its verification codes there, so users can register
+with an email address without any external mail provider. One-time console setup:
+
+1. **Connectors → Email and SMS → Set up email connector → SMTP**: host `mailpit`, port `1025`,
+   no TLS, any credentials, from `noreply@ticketmanager.local`. Use the `Send test email` button
+   and check the Mailpit inbox.
+2. **Sign-in experience → Sign-up and sign-in**: add *Email address* to the sign-up identifiers
+   (keep *Username* if you want both) and enable *Email address + password* as a sign-in method.
+   Existing users without an email are asked to add one at their next sign-in.
+
 Next steps: `tickets:read` / `tickets:write` permissions on the API resource plus Logto roles
 (RBAC) with a `@RequireScopes()` decorator.
 

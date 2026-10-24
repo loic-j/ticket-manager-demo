@@ -1,7 +1,9 @@
-# Local infrastructure. Default profile: Logto (auth) + its PostgreSQL + the tickets PostgreSQL.
-# Profile "apps" adds the api and web images (see docker-compose.docker.yml for the Logto override).
+# Local infrastructure. Default profile: Logto (auth) + its PostgreSQL + the tickets PostgreSQL
+# + Mailpit (local mail catcher). Profile "apps" adds the api and web images (see
+# docker-compose.docker.yml for the Logto override).
 #   pnpm infra:up / infra:down / infra:logs      pnpm docker:build / docker:up / docker:down
-# Console: http://localhost:3302   OIDC endpoint: http://localhost:3301   tickets-db: localhost:5433
+# Console: http://localhost:3302   OIDC endpoint: http://localhost:3301
+# Mailpit UI: http://localhost:8025   tickets-db: localhost:5433
 name: ticketmanager
 
 services:
@@ -35,6 +37,16 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  # Local mail catcher: Logto sends verification codes here, read them at http://localhost:8025.
+  mailpit:
+    image: axllent/mailpit:v1.27
+    ports:
+      - '8025:8025' # web UI
+      - '1025:1025' # SMTP (from the host)
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
 
   tickets-db:
     image: postgres:17-alpine

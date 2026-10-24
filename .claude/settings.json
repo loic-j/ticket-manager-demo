@@ -23,8 +23,8 @@
       "Bash(pnpm docker:*)",
       "Bash(docker compose * down *)",
       "Bash(docker compose * up *)",
-      "Bash(pnpm --filter @ticketmanager/api exec prisma migrate reset *)",
-      "Bash(pnpm --filter @ticketmanager/api exec prisma db push *)"
+      "Bash(pnpm --filter @ticketmanager/tickets-service exec prisma migrate reset *)",
+      "Bash(pnpm --filter @ticketmanager/tickets-service exec prisma db push *)"
     ],
     "deny": [
       "Read(./.env)",
@@ -32,7 +32,7 @@
       "Read(./**/.env.local)",
       "Read(./infra/.env)",
       "Edit(./pnpm-lock.yaml)",
-      "Edit(./apps/api/src/generated/**)",
+      "Edit(./apps/tickets-service/src/generated/**)",
       "Edit(./apps/web/AGENTS.md)"
     ]
   },

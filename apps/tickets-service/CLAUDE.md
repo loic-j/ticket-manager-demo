@@ -1,4 +1,4 @@
-# apps/api (NestJS 12, ESM, Prisma 7)
+# apps/tickets-service (NestJS 12, ESM, Prisma 7)
 
 - Layout per bounded context: `domain/` (entities, ports, domain errors), `application/`
   (use cases), `infrastructure/` (adapters), `presentation/` (controllers, filters). See
@@ -6,7 +6,7 @@
 - `PrismaService` (`src/database/`) is the single Prisma client; never instantiate `PrismaClient`
   elsewhere. Persistence adapters map Prisma rows ↔ domain objects explicitly (dates ↔ ISO strings).
 - Global `AccessTokenGuard` (jose, JWKS from Logto). `@Public()` to opt out. Request user is
-  available as `req.user: AuthUser` (shape in `@ticketmanager/shared`).
+  available as `req.user: AuthUser` (shape in `@ticketmanager/contracts`).
 - Validation: `StandardSchemaValidationPipe` is global; pass shared Zod schemas via the `schema`
   option on `@Body()` / `@Param()` / `@Query()`. No `class-validator`.
 - Tests: Vitest. Unit specs next to the code (`*.spec.ts`), e2e in `test/*.e2e-spec.ts`

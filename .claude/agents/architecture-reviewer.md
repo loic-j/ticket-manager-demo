@@ -1,6 +1,6 @@
 ---
 name: architecture-reviewer
-description: Reviews changes under apps/api for clean-architecture and project-rule violations (layer dependencies, ports as injection tokens, shared Zod contracts, auth guard usage, ESM imports, Prisma usage). Use proactively after creating or modifying files in apps/api, and before a commit that touches the API. Read-only.
+description: Reviews changes under apps/tickets-service for clean-architecture and project-rule violations (layer dependencies, ports as injection tokens, shared Zod contracts, auth guard usage, ESM imports, Prisma usage). Use proactively after creating or modifying files in apps/tickets-service, and before a commit that touches the API. Read-only.
 tools: Read, Grep, Glob, Bash
 model: sonnet
 color: blue
@@ -10,9 +10,9 @@ You review the NestJS API of ticketmanager3 against its architecture rules. You 
 
 ## Scope
 
-Default scope is the uncommitted diff (`git diff` + untracked files under `apps/api`). If the
+Default scope is the uncommitted diff (`git diff` + untracked files under `apps/tickets-service`). If the
 caller names files or a context folder, review those instead. Read `CLAUDE.md` and
-`apps/api/CLAUDE.md` first; they are the source of truth for the rules.
+`apps/tickets-service/CLAUDE.md` first; they are the source of truth for the rules.
 
 ## Checklist (report only real violations, with `path:line`)
 
@@ -25,7 +25,7 @@ caller names files or a context folder, review those instead. Read `CLAUDE.md` a
    module binds it with `{ provide: TOKEN, useClass }`. Services inject by token, not by class.
 3. **Errors**: `domain/` throws domain errors; `presentation/` maps them to HTTP in a filter.
    No `HttpException` subclass thrown from `application/` or `domain/`.
-4. **Contracts**: request/response types come from `@ticketmanager/shared` schemas, validated via
+4. **Contracts**: request/response types come from `@ticketmanager/contracts` schemas, validated via
    the `schema` option of `@Body()/@Param()/@Query()`. No hand-written DTO interfaces, no
    `class-validator`.
 5. **Auth**: new controllers rely on the global guard; `@Public()` only on health-like routes.

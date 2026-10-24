@@ -13,7 +13,7 @@
   before calling the API; `revalidatePath('/')` after mutations; `redirect()` must stay outside
   `try/catch`.
 - Styling: Tailwind utility classes, light/dark via `dark:` variants, no CSS modules.
-- Env (server-only, runtime-read, no `NEXT_PUBLIC_*`): `API_URL`, `BASE_URL`, `LOGTO_ENDPOINT`,
+- Env (server-only, runtime-read, no `NEXT_PUBLIC_*`): `TICKETS_API_URL`, `BASE_URL`, `LOGTO_ENDPOINT`,
   `LOGTO_APP_ID`, `LOGTO_APP_SECRET`, `LOGTO_COOKIE_SECRET` in `.env.local` (gitignored).
 - Lint: ESLint flat config with `eslint-config-next`; the React hooks rule forbids JSX inside
   `try/catch` (use `.catch()` on the promise instead).

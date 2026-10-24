@@ -2,7 +2,7 @@
 node_modules/
 
 # build outputs
-apps/api/src/generated/
+apps/tickets-service/src/generated/
 dist/
 .next/
 out/

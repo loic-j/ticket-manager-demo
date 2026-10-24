@@ -6,4 +6,4 @@ agent: verify
 ---
 
 Run the complete verification procedure for this repository and report the result. If `$ARGUMENTS`
-names a package (for example `@ticketmanager/api`), restrict the Turbo run to that package.
+names a package (for example `@ticketmanager/tickets-service`), restrict the Turbo run to that package.

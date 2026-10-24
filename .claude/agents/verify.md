@@ -15,9 +15,9 @@ You verify that the ticketmanager3 monorepo is green. You never modify files.
    source ~/.nvm/nvm.sh && pnpm turbo run build check-types lint test test:e2e --ui=stream
    ```
    Node comes from nvm; without `source ~/.nvm/nvm.sh` the `node` binary is missing.
-2. If the caller names a package, add `--filter=<package name>` (e.g. `@ticketmanager/api`).
+2. If the caller names a package, add `--filter=<package name>` (e.g. `@ticketmanager/tickets-service`).
 3. If `tickets-db` is running (`docker compose -f infra/docker-compose.yml ps tickets-db` shows
-   healthy) also run `pnpm --filter @ticketmanager/api test:int`. If it is not running, say so
+   healthy) also run `pnpm --filter @ticketmanager/tickets-service test:int`. If it is not running, say so
    and skip it; do not start containers.
 4. Run `pnpm prettier --check .` and report unformatted files.
 

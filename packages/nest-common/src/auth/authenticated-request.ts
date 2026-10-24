@@ -1,4 +1,4 @@
-import type { AuthUser } from '@ticketmanager/shared';
+import type { AuthUser } from '@ticketmanager/contracts';
 import type { Request } from 'express';
 
 export interface AuthenticatedRequest extends Request {

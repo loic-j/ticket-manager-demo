@@ -1,4 +1,4 @@
-# @ticketmanager/shared
+# @ticketmanager/contracts
 
 Code shared between the API (NestJS) and the web app (Next.js): Zod schemas and the
 TypeScript types inferred from them. This is the single source of truth for the API contract.

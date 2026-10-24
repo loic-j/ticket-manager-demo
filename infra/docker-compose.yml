@@ -1,5 +1,5 @@
 # Local infrastructure. Default profile: Logto (auth) + its PostgreSQL + the tickets PostgreSQL
-# + Mailpit (local mail catcher). Profile "apps" adds the api and web images (see
+# + Mailpit (local mail catcher). Profile "apps" adds the tickets-service and web images (see
 # docker-compose.docker.yml for the Logto override).
 #   pnpm infra:up / infra:down / infra:logs      pnpm docker:build / docker:up / docker:down
 # Console: http://localhost:3302   OIDC endpoint: http://localhost:3301
@@ -13,7 +13,7 @@ services:
       logto-db:
         condition: service_healthy
     entrypoint: ['sh', '-c', 'npm run cli db seed -- --swe && npm start']
-    # Logto listens directly on 3301/3302 (defaults are 3001/3002, taken by our API).
+    # Logto listens directly on 3301/3302 (defaults are 3001/3002, reserved for our services).
     # Do NOT remap with ENDPOINT/ADMIN_ENDPOINT on localhost: Logto's CORS then sees two
     # localhost admin origins and rejects both, which breaks the admin console.
     ports:
@@ -65,11 +65,11 @@ services:
       timeout: 5s
       retries: 10
 
-  api-migrate:
+  tickets-migrate:
     profiles: ['apps']
     build:
       context: ..
-      dockerfile: apps/api/Dockerfile
+      dockerfile: apps/tickets-service/Dockerfile
       target: migrate
     depends_on:
       tickets-db:
@@ -77,13 +77,13 @@ services:
     environment:
       DATABASE_URL: postgresql://tickets:tickets@tickets-db:5432/tickets
 
-  api:
+  tickets-service:
     profiles: ['apps']
     build:
       context: ..
-      dockerfile: apps/api/Dockerfile
+      dockerfile: apps/tickets-service/Dockerfile
     depends_on:
-      api-migrate:
+      tickets-migrate:
         condition: service_completed_successfully
       logto:
         condition: service_started
@@ -104,7 +104,7 @@ services:
       context: ..
       dockerfile: apps/web/Dockerfile
     depends_on:
-      - api
+      - tickets-service
     ports:
       - '3000:3000'
     extra_hosts:
@@ -113,7 +113,7 @@ services:
       - path: ./.env
         required: true
     environment:
-      API_URL: http://api:3001
+      TICKETS_API_URL: http://tickets-service:3001
       BASE_URL: http://localhost:3000
       LOGTO_ENDPOINT: http://host.docker.internal:3301
 

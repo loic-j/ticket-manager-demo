@@ -37,6 +37,8 @@ function toDomain(row: TicketRow): Ticket {
     description: row.description,
     status: row.status,
     priority: row.priority,
+    createdBy: row.createdBy,
+    updatedBy: row.updatedBy,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -49,6 +51,8 @@ function toRow(ticket: Ticket): TicketRow {
     description: ticket.description,
     status: ticket.status,
     priority: ticket.priority,
+    createdBy: ticket.createdBy,
+    updatedBy: ticket.updatedBy,
     createdAt: new Date(ticket.createdAt),
     updatedAt: new Date(ticket.updatedAt),
   };

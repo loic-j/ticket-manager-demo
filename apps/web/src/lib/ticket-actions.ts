@@ -1,6 +1,6 @@
 'use server';
 
-import { createTicketSchema, ticketIdSchema, updateTicketSchema } from '@ticketmanager/shared';
+import { createTicketSchema, ticketIdSchema, updateTicketSchema } from '@ticketmanager/contracts';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { ticketsApi } from './api';

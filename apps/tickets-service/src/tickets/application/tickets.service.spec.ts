@@ -10,19 +10,24 @@ describe('TicketsService', () => {
   });
 
   it('creates a ticket as open and lists it', async () => {
-    const created = await service.create({
-      title: 'Broken keyboard',
-      description: '',
-      priority: 'high',
-    });
+    const created = await service.create(
+      { title: 'Broken keyboard', description: '', priority: 'high' },
+      'user_a',
+    );
     expect(created.status).toBe('open');
+    expect(created.createdBy).toBe('user_a');
     expect(await service.findAll()).toEqual([created]);
   });
 
   it('updates a ticket and bumps updatedAt', async () => {
-    const created = await service.create({ title: 'A', description: '', priority: 'low' });
-    const updated = await service.update(created.id, { status: 'resolved' });
+    const created = await service.create(
+      { title: 'A', description: '', priority: 'low' },
+      'user_a',
+    );
+    const updated = await service.update(created.id, { status: 'resolved' }, 'user_b');
     expect(updated.status).toBe('resolved');
+    expect(updated.createdBy).toBe('user_a');
+    expect(updated.updatedBy).toBe('user_b');
     expect(updated.updatedAt >= created.updatedAt).toBe(true);
   });
 

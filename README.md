@@ -1,16 +1,18 @@
 # ticketmanager3
 
-pnpm + Turborepo monorepo with a NestJS API and a Next.js web app sharing one typed API contract.
+pnpm + Turborepo monorepo: a Next.js BFF, a NestJS tickets service and shared typed contracts.
+The microservices roadmap lives in `docs/architecture/`.
 
 ```
 apps/
-  api/        NestJS 12 (ESM, Vitest, oxlint, Prisma), clean architecture → http://localhost:3001
+  tickets-service/  NestJS 12 (ESM, Vitest, oxlint, Prisma), clean architecture → http://localhost:3001
   web/        Next.js 16 (App Router, Tailwind 4, ESLint) → http://localhost:3000
 infra/
   docker-compose.yml         Logto + its PostgreSQL + the tickets PostgreSQL (+ api/web under profile "apps")
   docker-compose.docker.yml  Override for the full-Docker mode (Logto exposed as host.docker.internal)
 packages/
-  shared/             @ticketmanager/shared — Zod schemas + inferred types (the API contract)
+  contracts/          @ticketmanager/contracts — Zod schemas + inferred types (the HTTP contract)
+  nest-common/        @ticketmanager/nest-common — Logto auth guard, decorators shared by NestJS services
   typescript-config/  @ticketmanager/typescript-config — shared tsconfig presets
 ```
 
@@ -37,27 +39,27 @@ and caches results.
 
 Day-to-day: `pnpm infra:up` once, then `pnpm dev`.
 
-Target a single package with a filter, e.g. `pnpm turbo run dev --filter=@ticketmanager/api`,
+Target a single package with a filter, e.g. `pnpm turbo run dev --filter=@ticketmanager/tickets-service`,
 or run its own scripts with `pnpm --filter @ticketmanager/web dev`.
 
-Copy `apps/api/.env.example` and `apps/web/.env.example` to `.env` to override ports / URLs.
+Copy `apps/tickets-service/.env.example` and `apps/web/.env.example` to `.env` to override ports / URLs.
 
 ## How type sharing works
 
-1. Schemas live in `packages/shared/src` and are written with Zod. Types are inferred from them
+1. Schemas live in `packages/contracts/src` and are written with Zod. Types are inferred from them
    (`z.infer`, `z.input`, `z.output`), so there is exactly one definition per payload.
 2. The API validates requests with the same schemas through NestJS 12's Standard Schema support:
    `@Body({ schema: createTicketSchema })`. A global `StandardSchemaValidationPipe` is registered
-   in `apps/api/src/main.ts`. No class-based DTOs or `class-validator` needed.
+   in `apps/tickets-service/src/main.ts`. No class-based DTOs or `class-validator` needed.
 3. The web app imports the inferred types (and may reuse the schemas client-side for forms).
-4. `@ticketmanager/shared` is a _compiled_ internal package: `tsc` emits `dist/` with `.js`,
+4. `@ticketmanager/contracts` is a _compiled_ internal package: `tsc` emits `dist/` with `.js`,
    `.d.ts` and declaration maps. Both apps consume the compiled output, so it works with the
    NestJS `tsc` build, with Node at runtime, with Vitest and with Turbopack alike. Turborepo's
    `dependsOn: ["^build"]` guarantees it is built before any dependent task, and `pnpm dev`
    keeps it rebuilding with `tsc --watch`.
 
-Adding a new domain: create `packages/shared/src/<domain>/<name>.schema.ts`, re-export it from
-`packages/shared/src/index.ts`, then import from `@ticketmanager/shared` in both apps.
+Adding a new domain: create `packages/contracts/src/<domain>/<name>.schema.ts`, re-export it from
+`packages/contracts/src/index.ts`, then import from `@ticketmanager/contracts` in both apps.
 
 ## Authentication (Logto)
 
@@ -73,8 +75,8 @@ Browser ──► Next.js (:3000) ──OIDC──► Logto (:3301, console :330
 
 The browser never calls the API directly: Next.js Server Components and Server Actions call it
 server-side with an access token issued for the API resource `https://api.ticketmanager.local`
-(constant `API_RESOURCE_INDICATOR` in `@ticketmanager/shared`). On the API side, a global guard
-requires a valid token on every route except those marked `@Public()` (`apps/api/src/auth/`).
+(constant `TICKETS_API_RESOURCE` in `@ticketmanager/contracts`). On the API side, a global guard
+requires a valid token on every route except those marked `@Public()` (`apps/tickets-service/src/auth/`).
 The e2e tests replace the verifier with a local key pair: they run without Logto or Docker.
 
 ### One-time setup
@@ -87,7 +89,7 @@ The e2e tests replace the verifier with a local key pair: they run without Logto
    - Redirect URI: `http://localhost:3000/callback`
    - Post sign-out redirect URI: `http://localhost:3000/`
    - Copy the _App ID_ and an _App secret_.
-4. **API resources → Create API resource**: name `ticketmanager-api`, identifier
+4. **API resources → Create API resource**: name `ticketmanager-tickets-service`, identifier
    `https://api.ticketmanager.local`. Without it Logto refuses to issue the API token
    (`invalid_target`).
 5. **Users → Add user**: create a test user (or enable sign-up under _Sign-in experience_).
@@ -115,7 +117,7 @@ Next steps: `tickets:read` / `tickets:write` permissions on the API resource plu
 
 ## API architecture
 
-Each bounded context under `apps/api/src/` follows a light clean-architecture layout:
+Each bounded context under `apps/tickets-service/src/` follows a light clean-architecture layout:
 
 ```
 tickets/
@@ -126,32 +128,32 @@ tickets/
   tickets.module.ts Composition root: binds TICKET_REPOSITORY to the chosen adapter.
 ```
 
-Request validation happens at the boundary with the Zod schemas from `@ticketmanager/shared`, so
+Request validation happens at the boundary with the Zod schemas from `@ticketmanager/contracts`, so
 DTO types are shared with the web app. To change the storage, add an adapter in `infrastructure/`
 and change the binding in `tickets.module.ts`; nothing else moves.
 
 ## Database (Prisma + PostgreSQL)
 
 Tickets live in their own PostgreSQL (`tickets-db`, `localhost:5433`), separate from Logto's.
-Prisma 7 with the `pg` driver adapter; schema in `apps/api/prisma/schema.prisma`, migrations
-committed in `apps/api/prisma/migrations/`, config in `apps/api/prisma.config.ts`. The generated
-client (`apps/api/src/generated/`) is gitignored and produced by the `db:generate` Turbo task,
+Prisma 7 with the `pg` driver adapter; schema in `apps/tickets-service/prisma/schema.prisma`, migrations
+committed in `apps/tickets-service/prisma/migrations/`, config in `apps/tickets-service/prisma.config.ts`. The generated
+client (`apps/tickets-service/src/generated/`) is gitignored and produced by the `db:generate` Turbo task,
 which every build / check / test task depends on.
 
 ```bash
 pnpm infra:up                                   # tickets-db (and Logto)
-pnpm --filter @ticketmanager/api db:migrate     # apply migrations locally (dev) / create one after editing the schema
-pnpm --filter @ticketmanager/api db:deploy      # apply committed migrations (CI / prod)
-pnpm --filter @ticketmanager/api db:studio      # browse the data
-pnpm --filter @ticketmanager/api test:int       # integration test of the Prisma adapter (needs the DB)
+pnpm --filter @ticketmanager/tickets-service db:migrate     # apply migrations locally (dev) / create one after editing the schema
+pnpm --filter @ticketmanager/tickets-service db:deploy      # apply committed migrations (CI / prod)
+pnpm --filter @ticketmanager/tickets-service db:studio      # browse the data
+pnpm --filter @ticketmanager/tickets-service test:int       # integration test of the Prisma adapter (needs the DB)
 ```
 
-`DATABASE_URL` is read from `apps/api/.env` (see `.env.example`). Unit and e2e tests never touch
+`DATABASE_URL` is read from `apps/tickets-service/.env` (see `.env.example`). Unit and e2e tests never touch
 the database: the e2e helper swaps in `InMemoryTicketRepository`.
 
 ## Docker
 
-`apps/api/Dockerfile` and `apps/web/Dockerfile` build from the repo root with `turbo prune`, so an
+`apps/tickets-service/Dockerfile` and `apps/web/Dockerfile` build from the repo root with `turbo prune`, so an
 image only contains its package and workspace dependencies. The api Dockerfile has two targets:
 `runner` (default) and `migrate`, which runs `prisma migrate deploy`. The web image uses Next.js
 standalone output. `pnpm build` is untouched; `pnpm docker:build` builds the images.
@@ -167,7 +169,7 @@ standalone output. `pnpm build` is untouched; `pnpm docker:build` builds the ima
 - Stop with `pnpm docker:down`. To go back to the host dev mode, run `pnpm infra:up` again: it
   recreates Logto with its `localhost` endpoints.
 
-Configuration is read at runtime from the environment (`API_URL`, `BASE_URL`, `LOGTO_*`,
+Configuration is read at runtime from the environment (`TICKETS_API_URL`, `BASE_URL`, `LOGTO_*`,
 `DATABASE_URL`), so the same images work in both modes. Nothing in the web app uses
 `NEXT_PUBLIC_*` variables: the browser never calls the API or holds a token.
 

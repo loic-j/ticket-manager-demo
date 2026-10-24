@@ -21,6 +21,8 @@ describe('ticketSchema', () => {
       description: '',
       status: 'open',
       priority: 'low',
+      createdBy: 'user_a',
+      updatedBy: 'user_a',
       createdAt: now,
       updatedAt: now,
     });

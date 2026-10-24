@@ -9,4 +9,4 @@ node_modules
 **/.env
 **/.env.*
 !**/.env.example
-apps/api/src/generated
+apps/tickets-service/src/generated

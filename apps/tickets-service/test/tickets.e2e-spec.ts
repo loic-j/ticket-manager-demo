@@ -1,5 +1,5 @@
 import type { INestApplication } from '@nestjs/common';
-import type { Ticket } from '@ticketmanager/shared';
+import type { Ticket } from '@ticketmanager/contracts';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
 import { TestAuth } from './utils/test-auth.js';
@@ -36,6 +36,8 @@ describe('Tickets (e2e)', () => {
     const ticket = res.body as Ticket;
     expect(ticket.priority).toBe('medium');
     expect(ticket.description).toBe('');
+    expect(ticket.createdBy).toBe('user_test');
+    expect(ticket.updatedBy).toBe('user_test');
   });
 
   it('GET /tickets/:id returns 404 for an unknown ticket', () => {

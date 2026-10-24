@@ -17,6 +17,10 @@ export const ticketSchema = z.object({
   description: z.string().trim().max(5000),
   status: ticketStatusSchema,
   priority: ticketPrioritySchema,
+  /** Logto user id (`sub`) of the creator. */
+  createdBy: z.string().min(1),
+  /** Logto user id (`sub`) of the last editor. */
+  updatedBy: z.string().min(1),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });

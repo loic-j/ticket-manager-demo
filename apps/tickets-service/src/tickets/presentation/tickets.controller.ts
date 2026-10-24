@@ -13,10 +13,12 @@ import {
   createTicketSchema,
   ticketIdSchema,
   updateTicketSchema,
+  type AuthUser,
   type CreateTicketDto,
   type Ticket,
   type UpdateTicketDto,
-} from '@ticketmanager/shared';
+} from '@ticketmanager/contracts';
+import { CurrentUser } from '@ticketmanager/nest-common';
 import { TicketsService } from '../application/tickets.service.js';
 import { TicketErrorsFilter } from './ticket-errors.filter.js';
 
@@ -36,16 +38,20 @@ export class TicketsController {
   }
 
   @Post()
-  create(@Body({ schema: createTicketSchema }) dto: CreateTicketDto): Promise<Ticket> {
-    return this.ticketsService.create(dto);
+  create(
+    @Body({ schema: createTicketSchema }) dto: CreateTicketDto,
+    @CurrentUser() user: AuthUser,
+  ): Promise<Ticket> {
+    return this.ticketsService.create(dto, user.sub);
   }
 
   @Patch(':id')
   update(
     @Param('id', { schema: ticketIdSchema }) id: string,
     @Body({ schema: updateTicketSchema }) dto: UpdateTicketDto,
+    @CurrentUser() user: AuthUser,
   ): Promise<Ticket> {
-    return this.ticketsService.update(id, dto);
+    return this.ticketsService.update(id, dto, user.sub);
   }
 
   @Delete(':id')

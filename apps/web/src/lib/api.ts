@@ -1,15 +1,15 @@
 import { getAccessToken, getAccessTokenRSC } from '@logto/next/server-actions';
 import {
-  API_RESOURCE_INDICATOR,
+  TICKETS_API_RESOURCE,
   type CreateTicketInput,
   type Ticket,
   type UpdateTicketDto,
-} from '@ticketmanager/shared';
+} from '@ticketmanager/contracts';
 import { getLogtoConfig } from './logto';
 
 // Server-only: the browser never calls the API, so a plain (non NEXT_PUBLIC_) variable is used
 // and can be set at runtime, e.g. in Docker.
-const API_URL = process.env.API_URL ?? 'http://localhost:3001';
+const TICKETS_API_URL = process.env.TICKETS_API_URL ?? 'http://localhost:3001';
 
 export class ApiError extends Error {
   constructor(
@@ -31,13 +31,13 @@ async function bearer(context: CallContext): Promise<string> {
   const config = getLogtoConfig();
   const token =
     context === 'rsc'
-      ? await getAccessTokenRSC(config, API_RESOURCE_INDICATOR)
-      : await getAccessToken(config, API_RESOURCE_INDICATOR);
+      ? await getAccessTokenRSC(config, TICKETS_API_RESOURCE)
+      : await getAccessToken(config, TICKETS_API_RESOURCE);
   return `Bearer ${token}`;
 }
 
 async function api<T>(path: string, context: CallContext, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await fetch(`${TICKETS_API_URL}${path}`, {
     ...init,
     headers: {
       'content-type': 'application/json',

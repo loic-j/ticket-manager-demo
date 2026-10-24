@@ -1,5 +1,5 @@
 import { UserScope, type LogtoNextConfig } from '@logto/next';
-import { API_RESOURCE_INDICATOR } from '@ticketmanager/shared';
+import { TICKETS_API_RESOURCE } from '@ticketmanager/contracts';
 import { z } from 'zod';
 
 const envSchema = z.object({
@@ -28,7 +28,7 @@ export function getLogtoConfig(): LogtoNextConfig {
     cookieSecure: process.env.NODE_ENV === 'production',
     scopes: [UserScope.Email, UserScope.Profile],
     // Ask for an access token usable against our NestJS API.
-    resources: [API_RESOURCE_INDICATOR],
+    resources: [TICKETS_API_RESOURCE],
   };
   return cached;
 }

@@ -1,4 +1,4 @@
-import { TICKET_PRIORITIES } from '@ticketmanager/shared';
+import { TICKET_PRIORITIES } from '@ticketmanager/contracts';
 import { createTicketAction } from '@/lib/ticket-actions';
 
 export function NewTicketForm() {

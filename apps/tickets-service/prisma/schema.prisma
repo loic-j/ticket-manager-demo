@@ -13,7 +13,7 @@ datasource db {
   provider = "postgresql"
 }
 
-// Mirror of TICKET_STATUSES / TICKET_PRIORITIES in @ticketmanager/shared.
+// Mirror of TICKET_STATUSES / TICKET_PRIORITIES in @ticketmanager/contracts.
 enum TicketStatus {
   open
   in_progress
@@ -34,6 +34,9 @@ model Ticket {
   description String         @default("")
   status      TicketStatus   @default(open)
   priority    TicketPriority @default(medium)
+  /// Logto user ids (`sub`); users live in Logto, so no foreign key.
+  createdBy   String         @map("created_by")
+  updatedBy   String         @map("updated_by")
   createdAt   DateTime       @default(now()) @map("created_at")
   updatedAt   DateTime       @updatedAt @map("updated_at")
 

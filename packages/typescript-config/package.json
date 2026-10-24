@@ -4,6 +4,7 @@
   "private": true,
   "license": "UNLICENSED",
   "files": [
-    "*.json"
+    "*.json",
+    "nest-library.json"
   ]
 }

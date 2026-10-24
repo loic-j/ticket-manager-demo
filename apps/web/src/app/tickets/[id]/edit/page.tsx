@@ -1,5 +1,5 @@
 import { getLogtoContext } from '@logto/next/server-actions';
-import { ticketIdSchema } from '@ticketmanager/shared';
+import { ticketIdSchema } from '@ticketmanager/contracts';
 import { notFound, redirect } from 'next/navigation';
 import { connection } from 'next/server';
 import { Suspense } from 'react';

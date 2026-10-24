@@ -12,7 +12,7 @@ export class PrismaService extends PrismaClient implements OnModuleDestroy {
   constructor(config: ConfigService) {
     const connectionString = config.get<string>('DATABASE_URL');
     if (!connectionString) {
-      throw new Error('DATABASE_URL is not set (see apps/api/.env.example)');
+      throw new Error('DATABASE_URL is not set (see apps/tickets-service/.env.example)');
     }
     super({ adapter: new PrismaPg({ connectionString }) });
   }

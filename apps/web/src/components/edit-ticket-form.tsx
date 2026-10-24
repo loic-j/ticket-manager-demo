@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { TICKET_PRIORITIES, TICKET_STATUSES, type Ticket } from '@ticketmanager/shared';
+import { TICKET_PRIORITIES, TICKET_STATUSES, type Ticket } from '@ticketmanager/contracts';
 import { updateTicketAction } from '@/lib/ticket-actions';
 
 const fieldClass = 'rounded border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900';

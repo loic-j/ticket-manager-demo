@@ -21,7 +21,7 @@
     "docker:build": "docker compose -f infra/docker-compose.yml --profile apps build",
     "docker:up": "docker compose -f infra/docker-compose.yml -f infra/docker-compose.docker.yml --profile apps up -d --build",
     "docker:down": "docker compose -f infra/docker-compose.yml -f infra/docker-compose.docker.yml --profile apps down",
-    "docker:logs": "docker compose -f infra/docker-compose.yml -f infra/docker-compose.docker.yml --profile apps logs -f api web"
+    "docker:logs": "docker compose -f infra/docker-compose.yml -f infra/docker-compose.docker.yml --profile apps logs -f tickets-service web"
   },
   "devDependencies": {
     "prettier": "catalog:",

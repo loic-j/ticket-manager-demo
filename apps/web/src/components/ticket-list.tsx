@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import type { Ticket } from '@ticketmanager/shared';
+import type { Ticket } from '@ticketmanager/contracts';
 import { ApiError, ticketsApi } from '@/lib/api';
 
 export async function TicketList() {

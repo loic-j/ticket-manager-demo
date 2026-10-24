@@ -20,11 +20,10 @@ describe('PrismaTicketRepository (integration)', () => {
   });
 
   it('round-trips a ticket through PostgreSQL', async () => {
-    const ticket = createTicket({
-      title: 'Integration',
-      description: 'from test',
-      priority: 'high',
-    });
+    const ticket = createTicket(
+      { title: 'Integration', description: 'from test', priority: 'high' },
+      'user_int',
+    );
     created.push(ticket.id);
 
     await repository.save(ticket);

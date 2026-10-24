@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { authUserSchema, type AuthUser } from '@ticketmanager/shared';
+import { authUserSchema, type AuthUser } from '@ticketmanager/contracts';
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from 'jose';
 import { AUTH_CONFIG, type AuthConfig } from './auth.config.js';
 

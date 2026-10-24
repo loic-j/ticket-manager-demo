@@ -2,9 +2,9 @@ import { StandardSchemaValidationPipe, type INestApplication } from '@nestjs/com
 import { Test } from '@nestjs/testing';
 import { generateKeyPair, jwtVerify, SignJWT, type CryptoKey } from 'jose';
 import type { App } from 'supertest/types.js';
+import { TICKETS_API_RESOURCE } from '@ticketmanager/contracts';
+import { JwtVerifier, loadAuthConfig, toAuthUser } from '@ticketmanager/nest-common';
 import { AppModule } from '../../src/app.module.js';
-import { loadAuthConfig } from '../../src/auth/auth.config.js';
-import { JwtVerifier, toAuthUser } from '../../src/auth/jwt-verifier.js';
 import { PrismaService } from '../../src/database/prisma.service.js';
 import { TICKET_REPOSITORY } from '../../src/tickets/domain/ticket.repository.js';
 import { InMemoryTicketRepository } from '../../src/tickets/infrastructure/in-memory-ticket.repository.js';
@@ -32,7 +32,7 @@ export class TestAuth {
   ) {}
 
   static async create(): Promise<TestAuth> {
-    const { issuer, audience } = loadAuthConfig();
+    const { issuer, audience } = loadAuthConfig({ defaultAudience: TICKETS_API_RESOURCE });
     const { privateKey, publicKey } = await generateKeyPair(ALG);
     return new TestAuth(privateKey, publicKey, issuer, audience);
   }

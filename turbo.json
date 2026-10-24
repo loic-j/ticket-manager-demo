@@ -6,7 +6,7 @@
       "dependsOn": ["^build", "db:generate"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "env": [
-        "API_URL",
+        "TICKETS_API_URL",
         "BASE_URL",
         "DATABASE_URL",
         "LOGTO_API_RESOURCE",
@@ -22,7 +22,7 @@
       "cache": false,
       "persistent": true,
       "env": [
-        "API_URL",
+        "TICKETS_API_URL",
         "BASE_URL",
         "CORS_ORIGIN",
         "DATABASE_URL",

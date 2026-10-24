@@ -6,8 +6,8 @@
   "license": "UNLICENSED",
   "type": "module",
   "scripts": {
-    "build": "nest build",
-    "dev": "nest build && concurrently -n http,email-retry -c blue,magenta \"nest build --watch --preserveWatchOutput\" \"node --watch --watch-preserve-output dist/main.js\" \"node --watch --watch-preserve-output dist/main.email-retry.js\"",
+    "build": "rm -rf dist && nest build",
+    "dev": "rm -rf dist && nest build && concurrently -n build,http,email-retry -c gray,blue,magenta \"nest build --watch --preserveWatchOutput\" \"node --watch --watch-preserve-output dist/main.js\" \"node --watch --watch-preserve-output dist/main.email-retry.js\"",
     "start": "nest start",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",

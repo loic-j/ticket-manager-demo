@@ -6,8 +6,8 @@
   "license": "UNLICENSED",
   "type": "module",
   "scripts": {
-    "build": "nest build",
-    "dev": "nest build && concurrently -n http,relay -c blue,magenta \"nest build --watch --preserveWatchOutput\" \"node --watch --watch-preserve-output dist/main.js\" \"node --watch --watch-preserve-output dist/main.relay.js\"",
+    "build": "rm -rf dist && nest build",
+    "dev": "rm -rf dist && nest build && concurrently -n build,http,relay -c gray,blue,magenta \"nest build --watch --preserveWatchOutput\" \"node --watch --watch-preserve-output dist/main.js\" \"node --watch --watch-preserve-output dist/main.relay.js\"",
     "start": "nest start",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",

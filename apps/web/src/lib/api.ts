@@ -1,5 +1,10 @@
 import { getAccessToken, getAccessTokenRSC } from '@logto/next/server-actions';
-import { API_RESOURCE_INDICATOR, type CreateTicketInput, type Ticket } from '@ticketmanager/shared';
+import {
+  API_RESOURCE_INDICATOR,
+  type CreateTicketInput,
+  type Ticket,
+  type UpdateTicketDto,
+} from '@ticketmanager/shared';
 import { getLogtoConfig } from './logto';
 
 // Server-only: the browser never calls the API, so a plain (non NEXT_PUBLIC_) variable is used
@@ -49,7 +54,12 @@ async function api<T>(path: string, context: CallContext, init?: RequestInit): P
 export const ticketsApi = {
   /** Server Components only. */
   list: () => api<Ticket[]>('/tickets', 'rsc'),
+  /** Server Components only. */
+  get: (id: string) => api<Ticket>(`/tickets/${id}`, 'rsc'),
   /** Server Actions only. */
   create: (input: CreateTicketInput) =>
     api<Ticket>('/tickets', 'action', { method: 'POST', body: JSON.stringify(input) }),
+  /** Server Actions only. */
+  update: (id: string, input: UpdateTicketDto) =>
+    api<Ticket>(`/tickets/${id}`, 'action', { method: 'PATCH', body: JSON.stringify(input) }),
 };

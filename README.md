@@ -8,10 +8,11 @@ apps/
   tickets-service/  NestJS 12 (ESM, Vitest, oxlint, Prisma), clean architecture → http://localhost:3001
   web/        Next.js 16 (App Router, Tailwind 4, ESLint) → http://localhost:3000
 infra/
-  docker-compose.yml         Logto + its PostgreSQL + the tickets PostgreSQL (+ api/web under profile "apps")
+  docker-compose.yml         Logto + its PostgreSQL, tickets PostgreSQL, RabbitMQ, Mailpit (+ apps under profile "apps")
   docker-compose.docker.yml  Override for the full-Docker mode (Logto exposed as host.docker.internal)
 packages/
   contracts/          @ticketmanager/contracts — Zod schemas + inferred types (the HTTP contract)
+  events/             @ticketmanager/events — integration event envelope + versioned ticket events
   nest-common/        @ticketmanager/nest-common — Logto auth guard, decorators shared by NestJS services
   typescript-config/  @ticketmanager/typescript-config — shared tsconfig presets
 ```
@@ -134,10 +135,33 @@ tickets/
 ```
 
 Commands return ids; the controller reads the result back through a query. Domain transitions
-return `{ ticket, events }`; handlers persist the state and publish the events (in-process today,
-transactional outbox in the next phase). Request validation happens at the boundary with the Zod
+return `{ ticket, events }`; handlers persist the state and the matching integration events in
+one transaction (see "Events and outbox" below), then publish the domain events in-process. Request validation happens at the boundary with the Zod
 schemas from `@ticketmanager/contracts`. To change the storage, add adapters in `infrastructure/`
 and rebind the ports in `tickets.module.ts`; nothing else moves.
+
+## Events and outbox (RabbitMQ)
+
+Services integrate asynchronously through RabbitMQ (`pnpm infra:up` starts it; management UI at
+`http://localhost:15672`, `ticketmanager` / `ticketmanager`). The contract is
+`packages/events`: an envelope (`id`, `type`, `version`, `occurredAt`, `actor`, `payload`) and
+versioned payload schemas built with `defineEvent`, e.g. `ticketCreatedV1`.
+
+tickets-service never publishes from a request. Command handlers run a **unit of work**
+(`UNIT_OF_WORK` port, Prisma transaction propagated through `AsyncLocalStorage`) that saves the
+aggregate and appends the integration events to the `outbox_messages` table (`OUTBOX` port).
+`OutboxRelay` polls that table (every `OUTBOX_RELAY_INTERVAL_MS`), takes a cluster-wide advisory
+lock so a single instance publishes at a time, reads a batch in `sequence` order (assigned by the
+database at insert, so the events of one command keep their order), publishes it to the topic
+exchange `ticketmanager.events` (routing key = event type) with publisher confirms, and marks the
+rows. Delivery is at-least-once: consumers deduplicate on the envelope `id`. A broker outage only
+delays publication; failed batches keep their rows with `attempts` and `last_error`, unparsable
+rows are quarantined (`attempts` = `OUTBOX_MAX_ATTEMPTS`) and skipped. Every broker wait is bounded
+by `BROKER_TIMEOUT_MS`.
+
+`src/messaging/infrastructure/testing.ts` provides in-memory doubles; e2e tests run without
+database or broker, `pnpm --filter @ticketmanager/tickets-service test:int` exercises the real
+relay against PostgreSQL and RabbitMQ.
 
 ## Database (Prisma + PostgreSQL)
 

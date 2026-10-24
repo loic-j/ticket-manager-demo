@@ -1,8 +1,8 @@
 import type { Ticket } from '../ticket.js';
 
 /**
- * Domain events raised by the ticket aggregate. Plain classes (the CQRS EventBus dispatches by
- * constructor) with no framework import so the domain stays independent.
+ * Domain events raised by the ticket aggregate. Plain classes (matched by `instanceof` when
+ * mapped to integration events) with no framework import so the domain stays independent.
  */
 export class TicketCreatedEvent {
   constructor(readonly ticket: Ticket) {}

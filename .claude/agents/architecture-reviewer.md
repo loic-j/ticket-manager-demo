@@ -29,6 +29,9 @@ caller names files or a context folder, review those instead. Read `CLAUDE.md` a
    port only and return ids or void; query handlers use the read port only and return contract
    views; `domain/` never imports `@nestjs/cqrs`; events are published by handlers, not by the
    domain or the controller.
+   2c. **Outbox**: handlers append integration events to `OUTBOX` inside `UNIT_OF_WORK.run()` with
+   the aggregate write; nothing but `OutboxRelay` injects `EVENT_PUBLISHER`; Prisma adapters use
+   `this.prisma.db`; `domain/` never imports `@ticketmanager/events`.
 3. **Errors**: `domain/` throws domain errors; `presentation/` maps them to HTTP in a filter.
    No `HttpException` subclass thrown from `application/` or `domain/`.
 4. **Contracts**: request/response types come from `@ticketmanager/contracts` schemas, validated via

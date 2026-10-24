@@ -6,14 +6,21 @@
       "dependsOn": ["^build", "db:generate"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "env": [
-        "TICKETS_API_URL",
         "BASE_URL",
+        "BROKER_TIMEOUT_MS",
         "DATABASE_URL",
+        "EVENTS_EXCHANGE",
         "LOGTO_API_RESOURCE",
         "LOGTO_APP_ID",
         "LOGTO_APP_SECRET",
         "LOGTO_COOKIE_SECRET",
-        "LOGTO_ENDPOINT"
+        "LOGTO_ENDPOINT",
+        "OUTBOX_BATCH_SIZE",
+        "OUTBOX_MAX_ATTEMPTS",
+        "OUTBOX_RELAY_ENABLED",
+        "OUTBOX_RELAY_INTERVAL_MS",
+        "RABBITMQ_URL",
+        "TICKETS_API_URL"
       ],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
     },
@@ -22,16 +29,23 @@
       "cache": false,
       "persistent": true,
       "env": [
-        "TICKETS_API_URL",
         "BASE_URL",
+        "BROKER_TIMEOUT_MS",
         "CORS_ORIGIN",
         "DATABASE_URL",
+        "EVENTS_EXCHANGE",
         "LOGTO_API_RESOURCE",
         "LOGTO_APP_ID",
         "LOGTO_APP_SECRET",
         "LOGTO_COOKIE_SECRET",
         "LOGTO_ENDPOINT",
-        "PORT"
+        "OUTBOX_BATCH_SIZE",
+        "OUTBOX_MAX_ATTEMPTS",
+        "OUTBOX_RELAY_ENABLED",
+        "OUTBOX_RELAY_INTERVAL_MS",
+        "PORT",
+        "RABBITMQ_URL",
+        "TICKETS_API_URL"
       ]
     },
     "db:generate": {

@@ -13,12 +13,12 @@ export class PrismaTicketReadRepository implements TicketReadRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   async list(): Promise<Ticket[]> {
-    const rows = await this.prisma.ticket.findMany({ orderBy: { createdAt: 'asc' } });
+    const rows = await this.prisma.db.ticket.findMany({ orderBy: { createdAt: 'asc' } });
     return rows.map(toTicket);
   }
 
   async getById(id: string): Promise<Ticket | null> {
-    const row = await this.prisma.ticket.findUnique({ where: { id } });
+    const row = await this.prisma.db.ticket.findUnique({ where: { id } });
     return row ? toTicket(row) : null;
   }
 }

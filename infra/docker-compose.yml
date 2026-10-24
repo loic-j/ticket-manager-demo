@@ -3,7 +3,7 @@
 # docker-compose.docker.yml for the Logto override).
 #   pnpm infra:up / infra:down / infra:logs      pnpm docker:build / docker:up / docker:down
 # Console: http://localhost:3302   OIDC endpoint: http://localhost:3301
-# Mailpit UI: http://localhost:8025   tickets-db: localhost:5433
+# Mailpit UI: http://localhost:8025   tickets-db: localhost:5433   RabbitMQ UI: http://localhost:15672
 name: ticketmanager
 
 services:
@@ -65,6 +65,24 @@ services:
       timeout: 5s
       retries: 10
 
+  # Message broker between services. Management UI: http://localhost:15672 (ticketmanager / ticketmanager)
+  rabbitmq:
+    image: rabbitmq:4.4-management-alpine
+    hostname: rabbitmq
+    ports:
+      - '5672:5672' # AMQP
+      - '15672:15672' # management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: ticketmanager
+      RABBITMQ_DEFAULT_PASS: ticketmanager
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'check_running']
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
   tickets-migrate:
     profiles: ['apps']
     build:
@@ -85,6 +103,8 @@ services:
     depends_on:
       tickets-migrate:
         condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
       logto:
         condition: service_started
     ports:
@@ -97,6 +117,7 @@ services:
       DATABASE_URL: postgresql://tickets:tickets@tickets-db:5432/tickets
       LOGTO_ENDPOINT: http://host.docker.internal:3301
       LOGTO_API_RESOURCE: https://api.ticketmanager.local
+      RABBITMQ_URL: amqp://ticketmanager:ticketmanager@rabbitmq:5672
 
   web:
     profiles: ['apps']
@@ -120,3 +141,4 @@ services:
 volumes:
   logto-db-data:
   tickets-db-data:
+  rabbitmq-data:

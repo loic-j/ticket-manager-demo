@@ -14,7 +14,7 @@ messages. Replies to the user may be in their language.
 ## Commands (run from the repo root)
 
 ```bash
-pnpm infra:up                      # Logto + logto-db + tickets-db + mailpit (Docker Desktop)
+pnpm infra:up                      # Logto + logto-db + tickets-db + rabbitmq + mailpit (Docker Desktop)
 pnpm dev                           # all apps in watch mode (needs infra:up first)
 pnpm build | check-types | lint | test | test:e2e   # Turbo, every package
 pnpm turbo run test --filter=@ticketmanager/tickets-service     # one package
@@ -52,6 +52,12 @@ every edited file through a hook; do not hand-format.
   read the actor with `@CurrentUser()`. Every write records `createdBy` / `updatedBy` (Logto `sub`).
   The web app never exposes a token to the browser: all API calls happen in Server Components /
   Server Actions. Never introduce `NEXT_PUBLIC_*` variables for API URLs or secrets.
+- **Integration events go through the outbox**: a command handler writes the aggregate and the
+  rows returned by `toIntegrationEvents()` inside `UNIT_OF_WORK.run()`; only `OutboxRelay`
+  talks to RabbitMQ. Never inject `EVENT_PUBLISHER` into a handler. Event payloads are defined
+  once in `packages/events` with `defineEvent`; a breaking change is a new version.
+- **Prisma adapters use `this.prisma.db.<model>`**, never `this.prisma.<model>`, so they join the
+  ambient transaction of the unit of work.
 - **Databases stay separate**: Logto owns `logto-db`; tickets own `tickets-db`. Never point the
   app at Logto's database.
 - **Prisma**: after any change to `apps/tickets-service/prisma/schema.prisma`, run the `db-migration` skill
@@ -76,8 +82,9 @@ every edited file through a hook; do not hand-format.
   `https://api.ticketmanager.local` must exist in the Logto console.
 - The API only loads `apps/tickets-service/.env` through `ConfigModule.forRoot()`; a new env var must be read
   through `ConfigService`, validated with Zod where a config object exists.
-- e2e tests must stay database-free: `TestAuth.createApp()` overrides `TICKET_REPOSITORY` with the
-  in-memory adapter and stubs `PrismaService`. DB-backed tests go in `test/*.int-spec.ts`.
+- e2e tests must stay database- and broker-free: `TestAuth.createApp()` overrides the repository,
+  messaging ports and `OutboxRelay` with the doubles in `src/messaging/infrastructure/testing.ts`.
+  DB/broker-backed tests go in `test/*.int-spec.ts` (`pnpm infra:up` first).
 - oxlint lints the API, ESLint (`eslint-config-next`) lints the web app. The web lint forbids JSX
   inside `try/catch`.
 

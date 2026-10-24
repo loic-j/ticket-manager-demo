@@ -6,11 +6,16 @@
   `infrastructure/` (Prisma write + read adapters, in-memory adapter for tests), `presentation/`
   (controller dispatching to the buses, error filter). Register handlers in the module's
   `providers` via the `TICKET_COMMAND_HANDLERS` / `TICKET_QUERY_HANDLERS` arrays.
-- Allowed framework imports per layer: `domain/` none; `application/` `@nestjs/common` +
-  `@nestjs/cqrs`; `infrastructure/` anything; `presentation/` `@nestjs/*` only (no Prisma).
+- Allowed imports per layer: `domain/` none (not even `@ticketmanager/events`); `application/`
+  `@nestjs/common`, `@nestjs/cqrs`, `@ticketmanager/events` and the cross-cutting ports in
+  `src/messaging/ports` (explicit exception); `infrastructure/` anything; `presentation/`
+  `@nestjs/*` only (no Prisma).
   Prisma row mapping lives in `infrastructure/<name>-row.mapper.ts`, shared by both adapters.
-- Events: handlers publish domain events on the `EventBus` after persisting; never publish from
-  the domain or the controller. The transactional outbox (phase 2) replaces this publication.
+- Events: a handler maps domain events with `toIntegrationEvents()` and appends them to the
+  `OUTBOX` inside `UNIT_OF_WORK.run()` together with the aggregate write. Read-modify-write
+  commands read with `findById(id, { forUpdate: true })` inside the unit of work. `src/messaging/`
+  owns the outbox, the relay and the RabbitMQ publisher; handlers never touch the broker and the
+  CQRS `EventBus` is not used (reintroduce it only for an in-process subscriber).
 - `PrismaService` (`src/database/`) is the single Prisma client; never instantiate `PrismaClient`
   elsewhere. Persistence adapters map Prisma rows ↔ domain objects explicitly (dates ↔ ISO strings).
 - Global `AccessTokenGuard` (jose, JWKS from Logto). `@Public()` to opt out. Request user is
@@ -23,6 +28,12 @@
   (`pnpm test:int`, needs `pnpm infra:up`).
 - Lint: oxlint (`.oxlintrc.json`). `no-floating-promises` is an error: `await` or `void` promises.
 - Env: `.env` (gitignored) loaded by `ConfigModule`; keys documented in `.env.example`:
-  `PORT`, `CORS_ORIGIN`, `DATABASE_URL`, `LOGTO_ENDPOINT`, `LOGTO_API_RESOURCE`.
+  `PORT`, `CORS_ORIGIN`, `DATABASE_URL`, `LOGTO_ENDPOINT`, `LOGTO_API_RESOURCE`, `RABBITMQ_URL`,
+  `EVENTS_EXCHANGE`, `OUTBOX_RELAY_*`, `OUTBOX_BATCH_SIZE`, `OUTBOX_MAX_ATTEMPTS`, `BROKER_TIMEOUT_MS`.
+  Read them through `ConfigService` (see `loadMessagingConfig`), never `process.env`.
+- Prisma 7 CLI: `migrate dev` needs a TTY for some changes (e.g. a unique column on a populated
+  table); then write the SQL by hand in `prisma/migrations/<ts>_<name>/migration.sql` and run
+  `prisma migrate deploy`. Drift check: `prisma migrate diff --from-config-datasource
+--to-schema-datamodel prisma/schema.prisma --script` must print nothing.
 - Prisma: `prisma.config.ts` + `prisma/schema.prisma`; migrations are committed. Schema change →
   `db-migration` skill. Enum values must stay in sync with `TICKET_STATUSES` / `TICKET_PRIORITIES`.

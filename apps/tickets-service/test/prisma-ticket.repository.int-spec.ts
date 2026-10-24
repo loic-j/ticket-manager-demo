@@ -18,8 +18,8 @@ describe('PrismaTicketRepository (integration)', () => {
   });
 
   afterAll(async () => {
-    await prisma.ticket.deleteMany({ where: { id: { in: created } } });
-    await prisma.$disconnect();
+    await prisma.db.ticket.deleteMany({ where: { id: { in: created } } });
+    await prisma.onModuleDestroy();
   });
 
   it('round-trips a ticket through PostgreSQL', async () => {

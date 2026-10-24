@@ -38,6 +38,10 @@ describe('Tickets (e2e)', () => {
     expect(ticket.description).toBe('');
     expect(ticket.createdBy).toBe('user_test');
     expect(ticket.updatedBy).toBe('user_test');
+    expect(auth.outbox.events.at(-1)?.envelope).toMatchObject({
+      type: 'ticket.created',
+      payload: { ticketId: ticket.id },
+    });
   });
 
   it('GET /tickets/:id returns 404 for an unknown ticket', () => {

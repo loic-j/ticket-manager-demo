@@ -42,3 +42,24 @@ model Ticket {
 
   @@map("tickets")
 }
+
+/// Transactional outbox: integration events written in the same transaction as the aggregate,
+/// published to RabbitMQ by `OutboxRelay`, then marked with `publishedAt`.
+model OutboxMessage {
+  id            String    @id @db.Uuid
+  /// Publication order: assigned by the database at insert time, so events of one command (and
+  /// of one transaction) are published in the order they were appended.
+  sequence      BigInt    @unique @default(autoincrement())
+  type          String    @db.VarChar(100)
+  version       Int
+  aggregateType String    @map("aggregate_type") @db.VarChar(50)
+  aggregateId   String    @map("aggregate_id") @db.Uuid
+  payload       Json
+  occurredAt    DateTime  @map("occurred_at")
+  publishedAt   DateTime? @map("published_at")
+  attempts      Int       @default(0)
+  lastError     String?   @map("last_error")
+
+  @@index([publishedAt, sequence], map: "outbox_unpublished_idx")
+  @@map("outbox_messages")
+}

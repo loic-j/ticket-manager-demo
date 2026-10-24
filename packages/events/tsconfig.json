@@ -1,0 +1,9 @@
+{
+  "extends": "@ticketmanager/typescript-config/node-library.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "types": ["node"]
+  },
+  "include": ["src"]
+}

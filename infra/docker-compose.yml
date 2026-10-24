@@ -7,6 +7,11 @@
 # tickets-db: localhost:5433   notifications-db: localhost:5434
 name: ticketmanager
 
+# Worker processes live in their own files (one image each) but in the same project.
+include:
+  - compose/tickets-relay.yml
+  - compose/notifications-email-retry.yml
+
 services:
   logto:
     image: svhd/logto:1.45
@@ -118,6 +123,7 @@ services:
     build:
       context: ..
       dockerfile: apps/tickets-service/Dockerfile
+      target: runner
     depends_on:
       tickets-migrate:
         condition: service_completed_successfully
@@ -154,6 +160,7 @@ services:
     build:
       context: ..
       dockerfile: apps/notifications-service/Dockerfile
+      target: runner
     depends_on:
       notifications-migrate:
         condition: service_completed_successfully

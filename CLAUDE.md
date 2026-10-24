@@ -57,6 +57,11 @@ every edited file through a hook; do not hand-format.
   rows returned by `toIntegrationEvents()` inside `UNIT_OF_WORK.run()`; only `OutboxRelay`
   talks to RabbitMQ. Never inject `EVENT_PUBLISHER` into a handler. Event payloads are defined
   once in `packages/events` with `defineEvent`; a breaking change is a new version.
+- **Background work is a separate process and image, never an env switch**: timers (outbox
+  relay, email retry) live in modules imported only by a headless entry point
+  (`main.relay.ts`, `main.email-retry.ts`) with its own Dockerfile target and compose file under
+  `infra/compose/`. The HTTP `AppModule` must not import them. A service's `dev` script runs
+  both processes.
 - **Prisma adapters use `this.prisma.db.<model>`**, never `this.prisma.<model>`, so they join the
   ambient transaction of the unit of work.
 - **Databases stay separate**: one PostgreSQL per service (`tickets-db`, `notifications-db`) and

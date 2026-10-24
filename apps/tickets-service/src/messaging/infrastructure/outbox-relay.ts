@@ -18,6 +18,7 @@ type OutboxRow = { id: string; sequence: bigint; payload: unknown };
 
 /**
  * Polls `outbox_messages`, publishes unpublished rows in `sequence` order and marks them.
+ * Runs only in the relay process (`main.relay.ts`), never in the HTTP service.
  * Delivery is at-least-once (a crash between publish and mark republishes the batch), so
  * consumers deduplicate on the envelope id. Rows that cannot be parsed or that failed
  * `maxAttempts` times stay in the table with `last_error` and are skipped.
@@ -35,10 +36,6 @@ export class OutboxRelay implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit(): void {
-    if (!this.config.relayEnabled) {
-      this.logger.log('Outbox relay disabled (OUTBOX_RELAY_ENABLED=false)');
-      return;
-    }
     this.timer = setInterval(() => void this.tick(), this.config.relayIntervalMs);
     this.timer.unref();
   }

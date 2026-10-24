@@ -1,0 +1,26 @@
+# Email retry worker of notifications-service: its own image (Dockerfile target "email-retry").
+# Included by ../docker-compose.yml so it shares the project, network and dependencies.
+services:
+  notifications-email-retry:
+    profiles: ['apps']
+    build:
+      context: ../..
+      dockerfile: apps/notifications-service/Dockerfile
+      target: email-retry
+    depends_on:
+      notifications-migrate:
+        condition: service_completed_successfully
+      mailpit:
+        condition: service_started
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    env_file:
+      - path: ../.env
+        required: true
+    environment:
+      DATABASE_URL: postgresql://notifications:notifications@notifications-db:5432/notifications
+      LOGTO_ENDPOINT: http://host.docker.internal:3301
+      SMTP_URL: smtp://mailpit:1025
+      MAIL_FROM: Ticket Manager <noreply@ticketmanager.local>
+    deploy:
+      replicas: 1 # two workers could send the same email twice

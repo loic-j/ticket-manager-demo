@@ -14,8 +14,12 @@
 - Events: a handler maps domain events with `toIntegrationEvents()` and appends them to the
   `OUTBOX` inside `UNIT_OF_WORK.run()` together with the aggregate write. Read-modify-write
   commands read with `findById(id, { forUpdate: true })` inside the unit of work. `src/messaging/`
-  owns the outbox, the relay and the RabbitMQ publisher; handlers never touch the broker and the
-  CQRS `EventBus` is not used (reintroduce it only for an in-process subscriber).
+  owns the outbox (`MessagingModule`, write side) and the relay + RabbitMQ publisher
+  (`OutboxRelayModule`, imported only by `relay.module.ts` / `main.relay.ts`); handlers never
+  touch the broker and the CQRS `EventBus` is not used (reintroduce it only for an in-process
+  subscriber).
+- Processes: `main.ts` (HTTP) and `main.relay.ts` (relay, Docker target `relay`). `pnpm dev`
+  runs `nest build --watch` plus `node --watch` on both entry points.
 - `PrismaService` (`src/database/`) is the single Prisma client; never instantiate `PrismaClient`
   elsewhere. Persistence adapters map Prisma rows ↔ domain objects explicitly (dates ↔ ISO strings).
 - Global `AccessTokenGuard` (jose, JWKS from Logto). `@Public()` to opt out. Request user is
@@ -29,7 +33,8 @@
 - Lint: oxlint (`.oxlintrc.json`). `no-floating-promises` is an error: `await` or `void` promises.
 - Env: `.env` (gitignored) loaded by `ConfigModule`; keys documented in `.env.example`:
   `PORT`, `CORS_ORIGIN`, `DATABASE_URL`, `LOGTO_ENDPOINT`, `LOGTO_API_RESOURCE`, `RABBITMQ_URL`,
-  `EVENTS_EXCHANGE`, `OUTBOX_RELAY_*`, `OUTBOX_BATCH_SIZE`, `OUTBOX_MAX_ATTEMPTS`, `BROKER_TIMEOUT_MS`.
+  `EVENTS_EXCHANGE`, `OUTBOX_RELAY_INTERVAL_MS`, `OUTBOX_BATCH_SIZE`, `OUTBOX_MAX_ATTEMPTS`,
+  `BROKER_TIMEOUT_MS`.
   Read them through `ConfigService` (see `loadMessagingConfig`), never `process.env`.
 - Prisma 7 CLI: `migrate dev` needs a TTY for some changes (e.g. a unique column on a populated
   table); then write the SQL by hand in `prisma/migrations/<ts>_<name>/migration.sql` and run

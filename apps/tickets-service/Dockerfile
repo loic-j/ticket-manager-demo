@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1
 # Build from the repo root:  docker build -f apps/tickets-service/Dockerfile .
-# Targets: runner (default, the API), migrate (runs `prisma migrate deploy`).
+# Targets: runner (the HTTP API), relay (the outbox relay process), migrate (`prisma migrate deploy`).
+# Each target is a separate image; compose builds them with `target:`.
 
 FROM node:26-alpine AS base
 ENV TURBO_TELEMETRY_DISABLED=1 DO_NOT_TRACK=1 CI=1
@@ -25,7 +26,7 @@ FROM builder AS migrate
 WORKDIR /repo/apps/tickets-service
 CMD ["pnpm", "prisma", "migrate", "deploy"]
 
-# 3b. Production image: production dependencies + compiled output only.
+# 3b. Production image of the HTTP API: production dependencies + compiled output only.
 FROM base AS runner
 ENV NODE_ENV=production
 COPY --from=pruner /repo/out/json/ .
@@ -38,3 +39,7 @@ COPY --from=builder /repo/apps/tickets-service/dist ./apps/tickets-service/dist
 USER node
 EXPOSE 3001
 CMD ["node", "apps/tickets-service/dist/main.js"]
+
+# 3c. Outbox relay: same code and dependencies, headless entry point, no port.
+FROM runner AS relay
+CMD ["node", "apps/tickets-service/dist/main.relay.js"]

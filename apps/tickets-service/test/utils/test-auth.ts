@@ -6,13 +6,8 @@ import { TICKETS_API_RESOURCE } from '@ticketmanager/contracts';
 import { JwtVerifier, loadAuthConfig, toAuthUser } from '@ticketmanager/nest-common';
 import { AppModule } from '../../src/app.module.js';
 import { PrismaService } from '../../src/database/prisma.service.js';
-import { OutboxRelay } from '../../src/messaging/infrastructure/outbox-relay.js';
-import {
-  CapturingEventPublisher,
-  ImmediateUnitOfWork,
-  InMemoryOutbox,
-} from '../../src/messaging/infrastructure/testing.js';
-import { EVENT_PUBLISHER, OUTBOX, UNIT_OF_WORK } from '../../src/messaging/ports/index.js';
+import { ImmediateUnitOfWork, InMemoryOutbox } from '../../src/messaging/infrastructure/testing.js';
+import { OUTBOX, UNIT_OF_WORK } from '../../src/messaging/ports/index.js';
 import { TICKET_READ_REPOSITORY } from '../../src/tickets/application/ports/ticket-read.repository.js';
 import { TICKET_REPOSITORY } from '../../src/tickets/domain/ticket.repository.js';
 import { InMemoryTicketRepository } from '../../src/tickets/infrastructure/in-memory-ticket.repository.js';
@@ -90,15 +85,11 @@ export class TestAuth {
       .useValue(store)
       .overrideProvider(TICKET_READ_REPOSITORY)
       .useValue(store)
-      // Messaging without database or broker: immediate unit of work, captured outbox, no relay.
+      // Messaging without database: immediate unit of work, captured outbox (no relay here).
       .overrideProvider(UNIT_OF_WORK)
       .useValue(new ImmediateUnitOfWork())
       .overrideProvider(OUTBOX)
       .useValue(this.outbox)
-      .overrideProvider(EVENT_PUBLISHER)
-      .useValue(new CapturingEventPublisher())
-      .overrideProvider(OutboxRelay)
-      .useValue({})
       // Nothing touches the database once the repository is in memory.
       .overrideProvider(PrismaService)
       .useValue({})

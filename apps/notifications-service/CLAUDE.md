@@ -12,6 +12,10 @@ Same rules and layout as `apps/tickets-service/CLAUDE.md` (read it first). Speci
   notification insert; a duplicate returns `'duplicate'` and is acked. The email is sent after
   the commit by `EmailDeliveryService` (never throws, records `email` sent/failed + attempts) and
   `EmailRetryJob` re-sends `pending`/`failed` rows until `EMAIL_MAX_ATTEMPTS`.
+- Modules: `NotificationsCoreModule` (handlers, ports, adapters) is shared; `NotificationsModule`
+  adds the controller; `EmailRetryModule` adds the job and is imported only by
+  `email-retry-worker.module.ts` / `main.email-retry.ts` (Docker target `email-retry`).
+  `pnpm dev` runs the HTTP process and the worker side by side.
 - Repository writes are field-targeted (`insert`, `updateEmail`, `markRead`) so the email job
   and the user's "mark as read" never overwrite each other.
 - Which event produces which notification lives in
@@ -24,7 +28,7 @@ Same rules and layout as `apps/tickets-service/CLAUDE.md` (read it first). Speci
 - Env (`.env.example`): `PORT`, `CORS_ORIGIN`, `DATABASE_URL` (notifications-db :5434),
   `LOGTO_*`, `LOGTO_M2M_*`, `NOTIFICATIONS_DEV_FALLBACK_EMAIL`, `RABBITMQ_URL`, `EVENTS_EXCHANGE`,
   `CONSUMER_ENABLED`, `CONSUMER_PREFETCH`, `CONSUMER_DELIVERY_LIMIT`, `SMTP_URL`, `MAIL_FROM`,
-  `EMAIL_RETRY_*`, `EMAIL_MAX_ATTEMPTS`. Read via `ConfigService`. The dev fallback email is
+  `EMAIL_RETRY_INTERVAL_MS`, `EMAIL_RETRY_DELAY_MS`, `EMAIL_MAX_ATTEMPTS`. Read via `ConfigService`. The dev fallback email is
   ignored when `NODE_ENV=production`.
 - Tests: handler specs with the doubles in `infrastructure/testing.ts`; e2e via
   `test/utils/test-auth.ts` (no infra); `test:int` needs notifications-db.

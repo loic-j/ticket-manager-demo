@@ -1,13 +1,15 @@
 import { Global, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { OutboxRelay } from './infrastructure/outbox-relay.js';
 import { PrismaOutbox } from './infrastructure/prisma-outbox.js';
 import { PrismaUnitOfWork } from './infrastructure/prisma-unit-of-work.js';
-import { RabbitMqEventPublisher } from './infrastructure/rabbitmq-event-publisher.js';
 import { MESSAGING_CONFIG, loadMessagingConfig } from './messaging.config.js';
-import { EVENT_PUBLISHER, OUTBOX, UNIT_OF_WORK } from './ports/index.js';
+import { OUTBOX, UNIT_OF_WORK } from './ports/index.js';
 
-/** Transactional outbox: unit of work + outbox for handlers, relay + broker publisher. */
+/**
+ * Outbox write side for command handlers (unit of work + outbox). The publishing side lives in
+ * `OutboxRelayModule`, started by the dedicated relay process (`main.relay.ts`), never by the
+ * HTTP process.
+ */
 @Global()
 @Module({
   providers: [
@@ -18,9 +20,7 @@ import { EVENT_PUBLISHER, OUTBOX, UNIT_OF_WORK } from './ports/index.js';
     },
     { provide: UNIT_OF_WORK, useClass: PrismaUnitOfWork },
     { provide: OUTBOX, useClass: PrismaOutbox },
-    { provide: EVENT_PUBLISHER, useClass: RabbitMqEventPublisher },
-    OutboxRelay,
   ],
-  exports: [UNIT_OF_WORK, OUTBOX],
+  exports: [MESSAGING_CONFIG, UNIT_OF_WORK, OUTBOX],
 })
 export class MessagingModule {}

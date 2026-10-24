@@ -7,7 +7,7 @@
   "type": "module",
   "scripts": {
     "build": "nest build",
-    "dev": "nest start --watch",
+    "dev": "nest build && concurrently -n http,relay -c blue,magenta \"nest build --watch --preserveWatchOutput\" \"node --watch --watch-preserve-output dist/main.js\" \"node --watch --watch-preserve-output dist/main.relay.js\"",
     "start": "nest start",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
@@ -23,7 +23,10 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "dev:http": "nest start --watch",
+    "dev:relay": "nest start --watch --entryFile main.relay",
+    "start:relay": "node dist/main.relay"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",
@@ -54,6 +57,7 @@
     "@types/pg": "^8.23.1",
     "@types/supertest": "^7.0.0",
     "@vitest/coverage-v8": "^4.1.2",
+    "concurrently": "^10.0.6",
     "dotenv": "^18.0.9",
     "oxlint": "^1.58.0",
     "oxlint-tsgolint": "^7.0.2001",

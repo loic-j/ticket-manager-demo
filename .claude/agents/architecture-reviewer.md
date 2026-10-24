@@ -32,6 +32,9 @@ caller names files or a context folder, review those instead. Read `CLAUDE.md`,
    2c. **Outbox**: handlers append integration events to `OUTBOX` inside `UNIT_OF_WORK.run()` with
    the aggregate write; nothing but `OutboxRelay` injects `EVENT_PUBLISHER`; Prisma adapters use
    `this.prisma.db`; `domain/` never imports `@ticketmanager/events`.
+   2d. **Workers**: timers/pollers (`OutboxRelay`, `EmailRetryJob`) are provided only by modules
+   imported from a headless entry point (`main.relay.ts`, `main.email-retry.ts`); the HTTP
+   `AppModule` must not import them, and no env variable may toggle them.
 3. **Errors**: `domain/` throws domain errors; `presentation/` maps them to HTTP in a filter.
    No `HttpException` subclass thrown from `application/` or `domain/`.
 4. **Contracts**: request/response types come from `@ticketmanager/contracts` schemas, validated via

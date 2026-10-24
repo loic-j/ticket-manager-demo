@@ -12,10 +12,6 @@ const envSchema = z.object({
   NOTIFICATIONS_DEV_FALLBACK_EMAIL: z.email().optional(),
   SMTP_URL: z.string().min(1).default('smtp://localhost:1025'),
   MAIL_FROM: z.string().min(1).default('Ticket Manager <noreply@ticketmanager.local>'),
-  EMAIL_RETRY_ENABLED: z
-    .enum(['true', 'false'])
-    .default('true')
-    .transform((v) => v === 'true'),
   EMAIL_RETRY_INTERVAL_MS: z.coerce.number().int().positive().default(30_000),
   /** A notification is retried only if its last attempt is older than this. */
   EMAIL_RETRY_DELAY_MS: z.coerce.number().int().positive().default(60_000),
@@ -28,7 +24,6 @@ export interface NotificationsConfig {
   devFallbackEmail: string | null;
   smtpUrl: string;
   mailFrom: string;
-  emailRetryEnabled: boolean;
   emailRetryIntervalMs: number;
   emailRetryDelayMs: number;
   emailMaxAttempts: number;
@@ -54,7 +49,6 @@ export function loadNotificationsConfig(
     devFallbackEmail: production ? null : (e.NOTIFICATIONS_DEV_FALLBACK_EMAIL ?? null),
     smtpUrl: e.SMTP_URL,
     mailFrom: e.MAIL_FROM,
-    emailRetryEnabled: e.EMAIL_RETRY_ENABLED,
     emailRetryIntervalMs: e.EMAIL_RETRY_INTERVAL_MS,
     emailRetryDelayMs: e.EMAIL_RETRY_DELAY_MS,
     emailMaxAttempts: e.EMAIL_MAX_ATTEMPTS,

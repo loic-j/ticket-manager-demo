@@ -40,7 +40,8 @@ and caches results.
 | `pnpm test:e2e`    | API e2e tests (supertest)                               |
 | `pnpm format`      | Prettier on the whole repo                              |
 
-Day-to-day: `pnpm infra:up` once, then `pnpm dev`.
+Day-to-day: `pnpm infra:up` once, then `pnpm dev`. Each NestJS service's `dev` script runs its HTTP
+process and its worker process side by side (`dev:http` / `dev:relay` / `dev:email-retry` run one).
 
 Target a single package with a filter, e.g. `pnpm turbo run dev --filter=@ticketmanager/tickets-service`,
 or run its own scripts with `pnpm --filter @ticketmanager/web dev`.
@@ -152,7 +153,9 @@ versioned payload schemas built with `defineEvent`, e.g. `ticketCreatedV1`.
 tickets-service never publishes from a request. Command handlers run a **unit of work**
 (`UNIT_OF_WORK` port, Prisma transaction propagated through `AsyncLocalStorage`) that saves the
 aggregate and appends the integration events to the `outbox_messages` table (`OUTBOX` port).
-`OutboxRelay` polls that table (every `OUTBOX_RELAY_INTERVAL_MS`), takes a cluster-wide advisory
+`OutboxRelay`, running in the dedicated relay process (`pnpm dev` starts it next to the HTTP
+process; in Docker it is the `tickets-relay` image), polls that table (every
+`OUTBOX_RELAY_INTERVAL_MS`), takes a cluster-wide advisory
 lock so a single instance publishes at a time, reads a batch in `sequence` order (assigned by the
 database at insert, so the events of one command keep their order), publishes it to the topic
 exchange `ticketmanager.events` (routing key = event type) with publisher confirms, and marks the
@@ -171,8 +174,8 @@ relay against PostgreSQL and RabbitMQ.
 acks a message only after `HandleTicketEventCommand` committed the notification, nacks with a
 backoff on failure, and lets the broker dead-letter after 5 deliveries to
 `ticketmanager.events.dlx` (queue `notifications.tickets.dead`). Emails are sent after the commit
-and retried by a periodic job (`EMAIL_MAX_ATTEMPTS`), so a Logto or SMTP outage delays them
-instead of losing them. The handler is
+and retried by the email-retry worker process (`EMAIL_MAX_ATTEMPTS`; image
+`notifications-email-retry`), so a Logto or SMTP outage delays them instead of losing them. The handler is
 idempotent through an **inbox** table (`processed_events`, claimed in the same transaction as the
 notification row), so the at-least-once delivery never produces a second notification or email.
 `ticket.created` and `ticket.status-changed` notify the ticket creator; the recipient's email is
@@ -207,10 +210,25 @@ the database: the e2e helper swaps in `InMemoryTicketRepository`.
 
 ## Docker
 
-`apps/tickets-service/Dockerfile` and `apps/web/Dockerfile` build from the repo root with `turbo prune`, so an
-image only contains its package and workspace dependencies. The api Dockerfile has two targets:
-`runner` (default) and `migrate`, which runs `prisma migrate deploy`. The web image uses Next.js
-standalone output. `pnpm build` is untouched; `pnpm docker:build` builds the images.
+Every Dockerfile builds from the repo root with `turbo prune`, so an image only contains its
+package and workspace dependencies. Each deployable process is its own image (a Dockerfile
+target, selected by `target:` in compose):
+
+| Image                                     | Dockerfile target                            | Process                                        |
+| ----------------------------------------- | -------------------------------------------- | ---------------------------------------------- |
+| `ticketmanager-tickets-service`           | `apps/tickets-service` → `runner`            | HTTP API (`dist/main.js`)                      |
+| `ticketmanager-tickets-relay`             | `apps/tickets-service` → `relay`             | outbox relay (`dist/main.relay.js`), 1 replica |
+| `ticketmanager-tickets-migrate`           | `apps/tickets-service` → `migrate`           | `prisma migrate deploy`, runs once             |
+| `ticketmanager-notifications-service`     | `apps/notifications-service` → `runner`      | HTTP API + RabbitMQ consumer                   |
+| `ticketmanager-notifications-email-retry` | `apps/notifications-service` → `email-retry` | email retry worker, 1 replica                  |
+| `ticketmanager-notifications-migrate`     | `apps/notifications-service` → `migrate`     | `prisma migrate deploy`, runs once             |
+| `ticketmanager-web`                       | `apps/web`                                   | Next.js standalone                             |
+
+The worker services are declared in `infra/compose/*.yml` and pulled into the main project with
+`include:`, so they share the network and `depends_on` while staying in their own file. The HTTP
+images contain no relay or retry timer at all: the separation is in the NestJS modules
+(`OutboxRelayModule`, `EmailRetryModule` are only imported by the worker entry points).
+`pnpm build` is untouched; `pnpm docker:build` builds the images.
 
 `pnpm docker:up` runs the whole stack (databases, Logto, migrations, api, web) in Docker:
 

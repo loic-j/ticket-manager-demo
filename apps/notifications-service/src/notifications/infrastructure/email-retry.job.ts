@@ -14,8 +14,8 @@ import { NOTIFICATIONS_CONFIG, type NotificationsConfig } from '../notifications
 
 /**
  * Periodically re-sends emails that are still `pending` (crash between commit and send) or
- * `failed` (directory or SMTP error), until `emailMaxAttempts`. Single instance per process;
- * concurrent processes may send the same email twice in the worst case, which is acceptable.
+ * `failed` (directory or SMTP error), until `emailMaxAttempts`. Runs only in the email-retry
+ * process (`main.email-retry.ts`); keep a single replica, two workers could send an email twice.
  */
 @Injectable()
 export class EmailRetryJob implements OnModuleInit, OnModuleDestroy {
@@ -30,7 +30,6 @@ export class EmailRetryJob implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit(): void {
-    if (!this.config.emailRetryEnabled) return;
     this.timer = setInterval(() => void this.tick(), this.config.emailRetryIntervalMs);
     this.timer.unref();
   }

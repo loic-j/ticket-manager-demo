@@ -6,10 +6,6 @@ export const MESSAGING_CONFIG = Symbol('MESSAGING_CONFIG');
 const envSchema = z.object({
   RABBITMQ_URL: z.string().min(1).default('amqp://ticketmanager:ticketmanager@localhost:5672'),
   EVENTS_EXCHANGE: z.string().min(1).default('ticketmanager.events'),
-  OUTBOX_RELAY_ENABLED: z
-    .enum(['true', 'false'])
-    .default('true')
-    .transform((v) => v === 'true'),
   OUTBOX_RELAY_INTERVAL_MS: z.coerce.number().int().positive().default(500),
   OUTBOX_BATCH_SIZE: z.coerce.number().int().positive().max(500).default(50),
   /** Rows that failed this many times are left in the table for inspection and skipped. */
@@ -22,7 +18,6 @@ const envSchema = z.object({
 export type MessagingConfig = {
   rabbitmqUrl: string;
   exchange: string;
-  relayEnabled: boolean;
   relayIntervalMs: number;
   batchSize: number;
   maxAttempts: number;
@@ -43,7 +38,6 @@ export function loadMessagingConfig(source: Pick<ConfigService, 'get'> | Env): M
   return {
     rabbitmqUrl: e.RABBITMQ_URL,
     exchange: e.EVENTS_EXCHANGE,
-    relayEnabled: e.OUTBOX_RELAY_ENABLED,
     relayIntervalMs: e.OUTBOX_RELAY_INTERVAL_MS,
     batchSize: e.OUTBOX_BATCH_SIZE,
     maxAttempts: e.OUTBOX_MAX_ATTEMPTS,

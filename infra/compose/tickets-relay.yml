@@ -1,0 +1,20 @@
+# Outbox relay of tickets-service: its own image (Dockerfile target "relay"), one replica.
+# Included by ../docker-compose.yml so it shares the project, network and dependencies.
+services:
+  tickets-relay:
+    profiles: ['apps']
+    build:
+      context: ../..
+      dockerfile: apps/tickets-service/Dockerfile
+      target: relay
+    depends_on:
+      tickets-migrate:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://tickets:tickets@tickets-db:5432/tickets
+      RABBITMQ_URL: amqp://ticketmanager:ticketmanager@rabbitmq:5672
+      EVENTS_EXCHANGE: ticketmanager.events
+    deploy:
+      replicas: 1 # the relay serialises publishing with an advisory lock; more replicas just wait

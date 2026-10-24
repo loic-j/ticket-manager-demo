@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1
 # Build from the repo root:  docker build -f apps/notifications-service/Dockerfile .
-# Targets: runner (default, the API), migrate (runs `prisma migrate deploy`).
+# Targets: runner (HTTP API + broker consumer), email-retry (retry worker), migrate (`prisma migrate deploy`).
+# Each target is a separate image; compose builds them with `target:`.
 
 FROM node:26-alpine AS base
 ENV TURBO_TELEMETRY_DISABLED=1 DO_NOT_TRACK=1 CI=1
@@ -38,3 +39,7 @@ COPY --from=builder /repo/apps/notifications-service/dist ./apps/notifications-s
 USER node
 EXPOSE 3002
 CMD ["node", "apps/notifications-service/dist/main.js"]
+
+# 3c. Email retry worker: same code and dependencies, headless entry point, no port.
+FROM runner AS email-retry
+CMD ["node", "apps/notifications-service/dist/main.email-retry.js"]

@@ -1,0 +1,28 @@
+---
+name: db-migration
+description: Create a Prisma migration for apps/api after editing prisma/schema.prisma - regenerates the client, creates and applies the migration on the local tickets-db, and runs the DB integration test. Use whenever the Prisma schema changes.
+argument-hint: <migration-name>
+allowed-tools: Bash(source ~/.nvm/nvm.sh && pnpm *), Bash(docker compose -f infra/docker-compose.yml ps *), Read, Grep, Glob
+---
+
+Create and verify a Prisma migration named `$ARGUMENTS` (kebab-case, required; ask if missing).
+
+1. Make sure the database is up: `docker compose -f infra/docker-compose.yml ps tickets-db` must
+   show `healthy`. If not, tell the user to run `pnpm infra:up` and stop.
+2. Keep Prisma enums in sync with `packages/shared` constants (`TICKET_STATUSES`,
+   `TICKET_PRIORITIES`, ...). If a shared constant changed, rebuild the shared package first:
+   `source ~/.nvm/nvm.sh && pnpm --filter @ticketmanager/shared build`.
+3. Generate and migrate (reads `apps/api/.env` through `prisma.config.ts`):
+   ```bash
+   source ~/.nvm/nvm.sh && pnpm --filter @ticketmanager/api db:generate
+   source ~/.nvm/nvm.sh && pnpm --filter @ticketmanager/api exec prisma migrate dev --name $ARGUMENTS
+   ```
+4. Open the new file under `apps/api/prisma/migrations/<timestamp>_$ARGUMENTS/migration.sql` and
+   check it for destructive statements (`DROP COLUMN`, `DROP TABLE`, type changes on populated
+   columns). Flag them to the user before continuing.
+5. Update the Prisma adapter(s) in `apps/api/src/<context>/infrastructure/` and the domain model if
+   columns were added or renamed.
+6. Verify: `source ~/.nvm/nvm.sh && pnpm --filter @ticketmanager/api test:int` and
+   `pnpm turbo run build check-types lint test test:e2e --filter=@ticketmanager/api`.
+7. Report the migration file name and the tables/columns it changes. Never run `migrate reset`
+   or `db push` without an explicit request.

@@ -106,8 +106,8 @@ with an email address without any external mail provider. One-time console setup
 1. **Connectors → Email and SMS → Set up email connector → SMTP**: host `mailpit`, port `1025`,
    no TLS, any credentials, from `noreply@ticketmanager.local`. Use the `Send test email` button
    and check the Mailpit inbox.
-2. **Sign-in experience → Sign-up and sign-in**: add *Email address* to the sign-up identifiers
-   (keep *Username* if you want both) and enable *Email address + password* as a sign-in method.
+2. **Sign-in experience → Sign-up and sign-in**: add _Email address_ to the sign-up identifiers
+   (keep _Username_ if you want both) and enable _Email address + password_ as a sign-in method.
    Existing users without an email are asked to add one at their next sign-in.
 
 Next steps: `tickets:read` / `tickets:write` permissions on the API resource plus Logto roles

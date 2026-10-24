@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(source ~/.nvm/nvm.sh && pnpm *)",
+      "Bash(pnpm *)",
+      "Bash(pnpm turbo run *)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(git branch *)",
+      "Bash(docker compose -f infra/docker-compose.yml ps *)",
+      "Bash(docker compose -f infra/docker-compose.yml logs *)",
+      "Bash(curl -s http://localhost:*)",
+      "Bash(curl -s localhost:*)"
+    ],
+    "ask": [
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(git reset *)",
+      "Bash(git checkout *)",
+      "Bash(pnpm docker:*)",
+      "Bash(docker compose * down *)",
+      "Bash(docker compose * up *)",
+      "Bash(pnpm --filter @ticketmanager/api exec prisma migrate reset *)",
+      "Bash(pnpm --filter @ticketmanager/api exec prisma db push *)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./**/.env)",
+      "Read(./**/.env.local)",
+      "Read(./infra/.env)",
+      "Edit(./pnpm-lock.yaml)",
+      "Edit(./apps/api/src/generated/**)",
+      "Edit(./apps/web/AGENTS.md)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/format-file.sh",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  },
+  "enabledPlugins": {
+    "pr-review-toolkit@anthropic-plugin-directory": true,
+    "commit-commands@anthropic-plugin-directory": true,
+    "frontend-design@anthropic-plugin-directory": true,
+    "docker-skills@anthropic-plugin-directory": true,
+    "opinionated-prisma-skills@anthropic-plugin-directory": true
+  },
+  "skillOverrides": {
+    "docker-skills:docker-agent-config": "off",
+    "docker-skills:docker-agent-deploy": "off",
+    "docker-skills:docker-agent-run": "off",
+    "docker-skills:docker-sandboxes-env": "off",
+    "docker-skills:docker-sandboxes-kits": "off",
+    "docker-skills:docker-sandboxes-lifecycle": "off",
+    "docker-skills:docker-sandboxes-network-credentials": "off"
+  }
+}

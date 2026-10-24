@@ -31,3 +31,7 @@ pnpm-debug.log*
 .DS_Store
 *.pem
 .vercel
+
+# Claude Code (personal overrides)
+.claude/settings.local.json
+CLAUDE.local.md

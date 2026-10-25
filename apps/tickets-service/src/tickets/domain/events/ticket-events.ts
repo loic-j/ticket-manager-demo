@@ -1,4 +1,4 @@
-import type { Ticket } from '../ticket.js';
+import type { Ticket, TicketChanges } from '../ticket.js';
 
 /**
  * Domain events raised by the ticket aggregate. Plain classes (matched by `instanceof` when
@@ -11,9 +11,8 @@ export class TicketCreatedEvent {
 export class TicketChangedEvent {
   constructor(
     readonly ticket: Ticket,
-    /** Keys of the fields that changed, e.g. `['title', 'priority']`. */
-    readonly changedFields: readonly string[],
-    readonly previousStatus: Ticket['status'],
+    /** Old and new value of every field that differs from the previous version. */
+    readonly changes: TicketChanges,
   ) {}
 }
 

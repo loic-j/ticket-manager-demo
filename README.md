@@ -169,7 +169,7 @@ Nothing in the pipeline guarantees delivery order (several relays, concurrent co
 redeliveries). Instead every ticket carries an optimistic-concurrency `version` (1 at creation,
 +1 per change; a concurrent update is retried on the fresh state, then answered `409`), and
 every ticket event carries the **full state** with that version (`ticket.created`,
-`ticket.changed` with `changedFields` + `previousStatus`, `ticket.deleted` with the superseding
+`ticket.changed` with `changes` = `{ field: { from, to } }` per edited field, `ticket.deleted` with the superseding
 version). A consumer that keeps state per ticket records the last version it applied
 (`TICKET_VERSIONS.advance()` in notifications-service, inside the same transaction as its side
 effects) and ignores any event with a lower or equal version. A late or replayed event can

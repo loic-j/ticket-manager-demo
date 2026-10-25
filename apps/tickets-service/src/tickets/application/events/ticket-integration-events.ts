@@ -24,14 +24,7 @@ function toEnvelope(event: TicketDomainEvent, actor: string) {
     return ticketCreatedV1.create({ ticket: event.ticket }, meta);
   }
   if (event instanceof TicketChangedEvent) {
-    return ticketChangedV1.create(
-      {
-        ticket: event.ticket,
-        changedFields: [...event.changedFields],
-        previousStatus: event.previousStatus,
-      },
-      meta,
-    );
+    return ticketChangedV1.create({ ticket: event.ticket, changes: event.changes }, meta);
   }
   return ticketDeletedV1.create(
     { ticketId: event.ticketId, version: event.version, deletedBy: event.deletedBy },

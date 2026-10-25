@@ -17,13 +17,14 @@ export function notificationFor(envelope: EventEnvelope): Omit<NewNotification, 
     };
   }
   if (ticketChangedV1.is(envelope)) {
-    const { ticket, previousStatus } = envelope.payload;
-    if (ticket.status === previousStatus) return null; // title/priority edits do not notify
+    const { ticket, changes } = envelope.payload;
+    const status = changes.status;
+    if (!status) return null; // title, description or priority edits do not notify
     return {
       userId: ticket.createdBy,
       kind: 'ticket_status_changed',
-      title: `Ticket ${ticket.status.replace('_', ' ')}: ${ticket.title}`,
-      body: `Your ticket "${ticket.title}" moved from ${previousStatus} to ${ticket.status}.`,
+      title: `Ticket ${status.to.replace('_', ' ')}: ${ticket.title}`,
+      body: `Your ticket "${ticket.title}" moved from ${status.from} to ${status.to}.`,
       ticketId: ticket.id,
     };
   }

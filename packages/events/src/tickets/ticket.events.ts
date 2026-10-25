@@ -1,4 +1,4 @@
-import { ticketSchema } from '@ticketmanager/contracts';
+import { ticketSchema, updateTicketSchema } from '@ticketmanager/contracts';
 import { z } from 'zod';
 import { defineEvent } from '../envelope.js';
 
@@ -9,15 +9,29 @@ import { defineEvent } from '../envelope.js';
  */
 export const ticketCreatedV1 = defineEvent('ticket.created', 1, z.object({ ticket: ticketSchema }));
 
+const fieldChange = <T extends z.ZodType>(value: T) => z.object({ from: value, to: value });
+
+/**
+ * Old and new value of every editable field that differs from the previous version, keyed by
+ * field name. Derived from the PATCH contract so a new editable field becomes a trackable change.
+ */
+export const ticketChangesSchema = z
+  .object({
+    title: fieldChange(updateTicketSchema.shape.title.unwrap()),
+    description: fieldChange(updateTicketSchema.shape.description.unwrap()),
+    status: fieldChange(updateTicketSchema.shape.status.unwrap()),
+    priority: fieldChange(updateTicketSchema.shape.priority.unwrap()),
+  })
+  .partial()
+  .refine((changes) => Object.values(changes).some((change) => change !== undefined), {
+    message: 'at least one field must have changed',
+  });
+export type TicketChanges = z.infer<typeof ticketChangesSchema>;
+
 export const ticketChangedV1 = defineEvent(
   'ticket.changed',
   1,
-  z.object({
-    ticket: ticketSchema,
-    /** Fields that differ from the previous version, e.g. `['status', 'title']`. */
-    changedFields: z.array(z.string().min(1)).min(1),
-    previousStatus: ticketSchema.shape.status,
-  }),
+  z.object({ ticket: ticketSchema, changes: ticketChangesSchema }),
 );
 
 export const ticketDeletedV1 = defineEvent(

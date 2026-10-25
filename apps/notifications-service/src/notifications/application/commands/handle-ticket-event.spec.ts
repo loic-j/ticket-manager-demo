@@ -31,8 +31,12 @@ const created = () => ticketCreatedV1.create({ ticket });
 const changed = (version: number, status: TicketStatus, previousStatus: TicketStatus = 'open') =>
   ticketChangedV1.create({
     ticket: { ...ticket, version, status },
-    changedFields: ['status'],
-    previousStatus,
+    changes: { status: { from: previousStatus, to: status } },
+  });
+const retitled = (version: number, title: string) =>
+  ticketChangedV1.create({
+    ticket: { ...ticket, version, title },
+    changes: { title: { from: ticket.title, to: title } },
   });
 
 function setup(users: StaticUserDirectory) {
@@ -98,7 +102,9 @@ describe('HandleTicketEventHandler', () => {
         ),
       ),
     ).toBe('ignored');
-    expect(await handler.execute(new HandleTicketEventCommand(changed(2, 'open')))).toBe('ignored'); // title-only change
+    expect(await handler.execute(new HandleTicketEventCommand(retitled(2, 'Printer OK')))).toBe(
+      'ignored',
+    );
     expect(repo.rows.size).toBe(0);
   });
 
@@ -138,7 +144,12 @@ describe('notificationFor', () => {
       userId: 'u1',
       kind: 'ticket_status_changed',
       title: 'Ticket in progress: Printer on fire',
+      body: 'Your ticket "Printer on fire" moved from open to in_progress.',
     });
+  });
+
+  it('ignores edits that do not touch the status', () => {
+    expect(notificationFor(retitled(2, 'Printer OK'))).toBeNull();
   });
 });
 

@@ -39,8 +39,7 @@ describe('defineEvent', () => {
   it('round-trips through JSON and the envelope schema', () => {
     const event = ticketChangedV1.create({
       ticket: { ...ticket, version: 2, status: 'closed' },
-      changedFields: ['status'],
-      previousStatus: 'open',
+      changes: { status: { from: 'open', to: 'closed' } },
     });
     const parsed = ticketChangedV1.schema.parse(JSON.parse(JSON.stringify(event)));
     expect(parsed).toEqual(event);

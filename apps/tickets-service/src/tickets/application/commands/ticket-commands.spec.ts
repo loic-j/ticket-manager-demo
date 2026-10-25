@@ -47,8 +47,7 @@ describe('ticket command handlers', () => {
     expect(types()).toEqual(['ticket.created', 'ticket.changed']);
     expect(outbox.events[1]!.envelope.payload).toMatchObject({
       ticket: { version: 2, status: 'resolved' },
-      changedFields: ['status', 'title'],
-      previousStatus: 'open',
+      changes: { status: { from: 'open', to: 'resolved' }, title: { from: 'A', to: 'A2' } },
     });
   });
 

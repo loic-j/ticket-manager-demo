@@ -1,8 +1,9 @@
 # ticketmanager3
 
 pnpm + Turborepo monorepo: NestJS 12 services (`apps/tickets-service`, `apps/notifications-service`)
-integrated through RabbitMQ, Next.js 16 BFF (`apps/web`), shared packages (`contracts` = HTTP
-Zod schemas, `events` = integration events, `nest-common` = auth), Logto + PostgreSQL + RabbitMQ +
+integrated through RabbitMQ, the tickets outbox relay as its own package (`apps/tickets-relay-service`),
+Next.js 16 BFF (`apps/web`), shared packages (`contracts` = HTTP Zod schemas, `events` =
+integration events, `nest-common` = auth, `outbox` = relay + table contract), Logto + PostgreSQL + RabbitMQ +
 Mailpit in Docker (`infra/`). Roadmap: `docs/architecture/`.
 Architecture, setup and design notes live in `README.md` and `docs/`; this file holds the rules and
 commands that are not obvious from the code.
@@ -56,14 +57,16 @@ every edited file through a hook; do not hand-format.
   The web app never exposes a token to the browser: all API calls happen in Server Components /
   Server Actions. Never introduce `NEXT_PUBLIC_*` variables for API URLs or secrets.
 - **Integration events go through the outbox**: a command handler writes the aggregate and the
-  rows returned by `toIntegrationEvents()` inside `UNIT_OF_WORK.run()`; only `OutboxRelay`
-  talks to RabbitMQ. Never inject `EVENT_PUBLISHER` into a handler. Event payloads are defined
-  once in `packages/events` with `defineEvent`; a breaking change is a new version.
-- **Background work is a separate process and image, never an env switch**: timers (outbox
-  relay, email retry) live in modules imported only by a headless entry point
-  (`main.relay.ts`, `main.email-retry.ts`) with its own Dockerfile target and compose file under
-  `infra/compose/`. The HTTP `AppModule` must not import them. A service's `dev` script runs
-  both processes.
+  rows returned by `toIntegrationEvents()` inside `UNIT_OF_WORK.run()`; only the relay
+  (`@ticketmanager/outbox`, run by `apps/tickets-relay-service`) talks to RabbitMQ. Never inject
+  `EVENT_PUBLISHER` into a service. Event payloads are defined once in `packages/events` with
+  `defineEvent`; a breaking change is a new version.
+- **Background work is a separate process and image, never an env switch**, with its own compose
+  file under `infra/compose/`. Two shapes: a **separate package** when the worker needs none of
+  the service's code (`apps/tickets-relay-service`: Nest core + `@ticketmanager/outbox` only, so
+  the image ships no HTTP/auth/ORM dependency), or a **headless entry point** in the service
+  (`main.email-retry.ts`) when it needs the service's adapters; then the module is imported only
+  by that entry point and the HTTP `AppModule` must not import it.
 - **Prisma adapters use `this.prisma.db.<model>`**, never `this.prisma.<model>`, so they join the
   ambient transaction of the unit of work.
 - **Databases stay separate**: one PostgreSQL per service (`tickets-db`, `notifications-db`) and
@@ -97,8 +100,8 @@ every edited file through a hook; do not hand-format.
   `https://api.ticketmanager.local` must exist in the Logto console.
 - The API only loads `apps/tickets-service/.env` through `ConfigModule.forRoot()`; a new env var must be read
   through `ConfigService`, validated with Zod where a config object exists.
-- e2e tests must stay database- and broker-free: `TestAuth.createApp()` overrides the repository,
-  messaging ports and `OutboxRelay` with the doubles in `src/messaging/infrastructure/testing.ts`.
+- e2e tests must stay database- and broker-free: `TestAuth.createApp()` overrides the repository
+  and the messaging ports with the doubles in `src/messaging/infrastructure/testing.ts`.
   DB/broker-backed tests go in `test/*.int-spec.ts` (`pnpm infra:up` first).
 - oxlint lints the API, ESLint (`eslint-config-next`) lints the web app. The web lint forbids JSX
   inside `try/catch`.

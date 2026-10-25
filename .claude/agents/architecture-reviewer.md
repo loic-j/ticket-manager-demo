@@ -33,14 +33,16 @@ caller names files or a context folder, review those instead. Read `CLAUDE.md`,
    views; `domain/` never imports `@nestjs/cqrs`; events are published by handlers, not by the
    domain or the controller.
    2c. **Outbox**: handlers append integration events to `OUTBOX` inside `UNIT_OF_WORK.run()` with
-   the aggregate write; nothing but `OutboxRelay` injects `EVENT_PUBLISHER`; Prisma adapters use
+   the aggregate write; no service code injects `EVENT_PUBLISHER` (only `@ticketmanager/outbox`); Prisma adapters use
    `this.prisma.db`; `domain/` never imports `@ticketmanager/events`.
    2e. **Versions**: aggregate writes go through `insert` / `update` (optimistic, `version + 1`);
    integration events carry the full aggregate state and its version; consumers call the
    version guard inside the unit of work and never assume delivery order.
-   2d. **Workers**: timers/pollers (`OutboxRelay`, `EmailRetryJob`) are provided only by modules
-   imported from a headless entry point (`main.relay.ts`, `main.email-retry.ts`); the HTTP
-   `AppModule` must not import them, and no env variable may toggle them.
+   2d. **Workers**: timers/pollers run in their own process and image: a separate package when
+   they need none of the service's code (`apps/tickets-relay-service`, whose dependencies must
+   stay limited to Nest core + `@ticketmanager/outbox`), otherwise a module imported only from a
+   headless entry point (`main.email-retry.ts`). The HTTP `AppModule` must not import them, and
+   no env variable may toggle them.
 3. **Errors**: `domain/` throws domain errors; `presentation/` maps them to HTTP in a filter.
    No `HttpException` subclass thrown from `application/` or `domain/`.
 4. **Contracts**: request/response types come from `@ticketmanager/contracts` schemas, validated via

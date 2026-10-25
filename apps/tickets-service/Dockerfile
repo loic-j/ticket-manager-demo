@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # Build from the repo root:  docker build -f apps/tickets-service/Dockerfile .
-# Targets: runner (the HTTP API), relay (the outbox relay process), migrate (`prisma migrate deploy`).
-# Each target is a separate image; compose builds them with `target:`.
+# Targets: runner (the HTTP API), migrate (`prisma migrate deploy`). Compose builds them with
+# `target:`. The outbox relay is a separate package and image: apps/tickets-relay-service.
 
 FROM node:26-alpine AS base
 ENV TURBO_TELEMETRY_DISABLED=1 DO_NOT_TRACK=1 CI=1
@@ -35,12 +35,8 @@ RUN pnpm install --frozen-lockfile --prod
 COPY --from=builder /repo/packages/contracts/dist ./packages/contracts/dist
 COPY --from=builder /repo/packages/nest-common/dist ./packages/nest-common/dist
 COPY --from=builder /repo/packages/events/dist ./packages/events/dist
-COPY --from=builder /repo/packages/outbox/dist ./packages/outbox/dist
 COPY --from=builder /repo/apps/tickets-service/dist ./apps/tickets-service/dist
 USER node
 EXPOSE 3001
 CMD ["node", "apps/tickets-service/dist/main.js"]
 
-# 3c. Outbox relay: same code and dependencies, headless entry point, no port.
-FROM runner AS relay
-CMD ["node", "apps/tickets-service/dist/main.relay.js"]

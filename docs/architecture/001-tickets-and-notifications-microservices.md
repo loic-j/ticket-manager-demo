@@ -89,8 +89,8 @@ src/tickets/
 occurredAt, publishedAt?, attempts, lastError? }` in `tickets-db`.
 - The command handler runs one Prisma interactive transaction: write the aggregate, then insert
   one outbox row per domain event. Both succeed or neither does.
-- `OutboxRelay` (NestJS `@Interval`, every 500 ms, single instance guard via
-  `SELECT ... FOR UPDATE SKIP LOCKED`) takes up to 50 unpublished rows ordered by `occurredAt`,
+- `OutboxRelay` (`@ticketmanager/outbox`, plain `pg`, run by `apps/tickets-relay-service`; every
+  500 ms, scalable via `SELECT ... FOR UPDATE SKIP LOCKED`) takes up to 50 unpublished rows ordered by `sequence`,
   publishes each to RabbitMQ with publisher confirms, sets `publishedAt`. On failure: increment
   `attempts`, store `lastError`, retry with backoff; after N attempts log loudly (no silent drop).
 - Routing: exchange `ticketmanager.events` (topic), routing key = event `type`

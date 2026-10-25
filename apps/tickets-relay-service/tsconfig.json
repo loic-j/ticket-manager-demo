@@ -1,0 +1,9 @@
+{
+  "extends": "@ticketmanager/typescript-config/nestjs.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": ".",
+    "types": ["node"]
+  },
+  "exclude": ["node_modules", "dist"]
+}

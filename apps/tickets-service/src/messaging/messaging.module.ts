@@ -4,8 +4,8 @@ import { PrismaUnitOfWork } from './infrastructure/prisma-unit-of-work.js';
 import { OUTBOX, UNIT_OF_WORK } from './application/ports/index.js';
 
 /**
- * Outbox write side for command handlers (unit of work + outbox rows). Publishing is done by the
- * relay process built on `@ticketmanager/outbox` (`main.relay.ts`), never by the HTTP process.
+ * Outbox write side for command handlers (unit of work + outbox rows). Publishing is done by
+ * `apps/tickets-relay-service` (built on `@ticketmanager/outbox`), never by this process.
  */
 @Global()
 @Module({

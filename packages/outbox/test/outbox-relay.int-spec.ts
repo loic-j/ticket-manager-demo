@@ -80,7 +80,9 @@ describe('OutboxRelay (integration)', () => {
 
   it('publishes outbox rows in order, marks them, and republishes nothing afterwards', async () => {
     const envelopes = [1, 2, 3].map((n) => created(`Outbox ${n}`, new Date(inOneHour + n * 1000)));
-    await append(envelopes.map((e) => ({ id: e.id, payload: e, occurredAt: new Date(e.occurredAt) })));
+    await append(
+      envelopes.map((e) => ({ id: e.id, payload: e, occurredAt: new Date(e.occurredAt) })),
+    );
 
     // batchSize = 2: first drain publishes 2, second publishes 1, third finds nothing.
     expect(await relay.drainBatch(later)).toBe(2);
@@ -129,7 +131,9 @@ describe('OutboxRelay (integration)', () => {
 
   it('quarantines an unparsable row and still publishes the valid ones', async () => {
     const poisonId = randomUUID();
-    await append([{ id: poisonId, payload: { not: 'an envelope' }, occurredAt: new Date(inOneHour) }]);
+    await append([
+      { id: poisonId, payload: { not: 'an envelope' }, occurredAt: new Date(inOneHour) },
+    ]);
     const valid = created('After poison', new Date(inOneHour));
     await append([{ id: valid.id, payload: valid, occurredAt: new Date(inOneHour) }]);
 
@@ -146,7 +150,9 @@ describe('OutboxRelay (integration)', () => {
     const envelopes = [1, 2, 3, 4].map((n) =>
       created(`Parallel ${n}`, new Date(inOneHour + 10_000 + n)),
     );
-    await append(envelopes.map((e) => ({ id: e.id, payload: e, occurredAt: new Date(e.occurredAt) })));
+    await append(
+      envelopes.map((e) => ({ id: e.id, payload: e, occurredAt: new Date(e.occurredAt) })),
+    );
     const other = new OutboxRelay(db, { ...config, batchSize: 2 }, publisher);
 
     const [a, b] = await Promise.all([relay.drainBatch(later), other.drainBatch(later)]);

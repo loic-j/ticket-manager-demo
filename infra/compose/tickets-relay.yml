@@ -1,13 +1,13 @@
-# Outbox relay of tickets-service: its own image (Dockerfile target "relay"). Stateless: scale with
-# `--scale tickets-relay=N`, instances share the work through FOR UPDATE SKIP LOCKED.
-# Included by ../docker-compose.yml so it shares the project, network and dependencies.
+# Outbox relay of tickets-service: its own package and image (apps/tickets-relay-service), reading
+# tickets-db. Stateless: scale with `--scale tickets-relay=N`, instances share the work through
+# FOR UPDATE SKIP LOCKED. Included by ../docker-compose.yml so it shares the project and network.
 services:
   tickets-relay:
     profiles: ['apps']
     build:
       context: ../..
-      dockerfile: apps/tickets-service/Dockerfile
-      target: relay
+      dockerfile: apps/tickets-relay-service/Dockerfile
+      target: runner
     depends_on:
       tickets-migrate:
         condition: service_completed_successfully

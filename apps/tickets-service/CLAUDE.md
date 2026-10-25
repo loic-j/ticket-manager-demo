@@ -20,11 +20,11 @@
   commands are optimistic: read, transition (`version + 1`), `update()` returns `false` on a
   concurrent change, retry up to 3 times, then `ConcurrencyConflictError` (409). `src/messaging/`
   owns the **write side** of the outbox only (`MessagingModule`: unit of work + `PrismaOutbox`);
-  publishing is done by `@ticketmanager/outbox` (`OutboxRelayModule`, imported only by
-  `relay.module.ts` / `main.relay.ts`). Handlers never touch the broker and the CQRS `EventBus`
-  is not used (reintroduce it only for an in-process subscriber).
-- Processes: `main.ts` (HTTP) and `main.relay.ts` (relay, Docker target `relay`). `pnpm dev`
-  runs `nest build --watch` plus `node --watch` on both entry points.
+  publishing is done by `apps/tickets-relay-service` (its own package and image, built on
+  `@ticketmanager/outbox`). Handlers never touch the broker and the CQRS `EventBus` is not used
+  (reintroduce it only for an in-process subscriber).
+- One process: `main.ts` (HTTP). `pnpm dev` runs `nest build --watch` plus `node --watch`.
+  The relay is `apps/tickets-relay-service`, started by the root `pnpm dev` as well.
 - `PrismaService` (`src/database/`) is the single Prisma client; never instantiate `PrismaClient`
   elsewhere. Persistence adapters map Prisma rows ↔ domain objects explicitly (dates ↔ ISO strings).
 - Global `AccessTokenGuard` (jose, JWKS from Logto). `@Public()` to opt out. Request user is
@@ -37,9 +37,7 @@
   (`pnpm test:int`, needs `pnpm infra:up`).
 - Lint: oxlint (`.oxlintrc.json`). `no-floating-promises` is an error: `await` or `void` promises.
 - Env: `.env` (gitignored) loaded by `ConfigModule`; keys documented in `.env.example`:
-  `PORT`, `CORS_ORIGIN`, `DATABASE_URL`, `LOGTO_ENDPOINT`, `LOGTO_API_RESOURCE`, `RABBITMQ_URL`,
-  `EVENTS_EXCHANGE`, `OUTBOX_RELAY_INTERVAL_MS`, `OUTBOX_BATCH_SIZE`, `OUTBOX_MAX_ATTEMPTS`,
-  `BROKER_TIMEOUT_MS`.
+  `PORT`, `CORS_ORIGIN`, `DATABASE_URL`, `LOGTO_ENDPOINT`, `LOGTO_API_RESOURCE`.
   Read them through `ConfigService` (see `loadOutboxRelayConfig` in `@ticketmanager/outbox`
   for the pattern), never `process.env`.
 - Prisma 7 CLI: `migrate dev` needs a TTY for some changes (e.g. a unique column on a populated

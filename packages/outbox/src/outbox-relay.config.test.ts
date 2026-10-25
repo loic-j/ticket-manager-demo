@@ -16,7 +16,10 @@ describe('loadOutboxRelayConfig', () => {
   });
 
   it('reads through a ConfigService-like source', () => {
-    const values: Record<string, string> = { DATABASE_URL: 'postgresql://y', EVENTS_EXCHANGE: 'ex' };
+    const values: Record<string, string> = {
+      DATABASE_URL: 'postgresql://y',
+      EVENTS_EXCHANGE: 'ex',
+    };
     const config = loadOutboxRelayConfig({ get: (key: string) => values[key] as never });
     expect(config.databaseUrl).toBe('postgresql://y');
     expect(config.exchange).toBe('ex');

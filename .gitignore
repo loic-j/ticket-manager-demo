@@ -3,6 +3,7 @@ node_modules/
 
 # build outputs
 apps/tickets-service/src/generated/
+apps/notifications-service/src/generated/
 dist/
 .next/
 out/

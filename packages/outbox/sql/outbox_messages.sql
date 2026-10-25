@@ -21,4 +21,7 @@ CREATE TABLE "outbox_messages" (
 );
 
 CREATE UNIQUE INDEX "outbox_messages_sequence_key" ON "outbox_messages"("sequence");
-CREATE INDEX "outbox_unpublished_idx" ON "outbox_messages"("published_at", "sequence");
+-- Pending rows only: the relay reads `WHERE published_at IS NULL ... ORDER BY sequence`, and the
+-- published majority stays out of the index. Partial indexes cannot be declared in a Prisma
+-- schema, so each service ships this statement in a hand-written migration.
+CREATE INDEX "outbox_unpublished_idx" ON "outbox_messages"("sequence") WHERE "published_at" IS NULL;

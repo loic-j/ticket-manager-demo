@@ -9,10 +9,11 @@ const envSchema = z.object({
   EVENTS_EXCHANGE: z.string().min(1).default('ticketmanager.events'),
   OUTBOX_RELAY_INTERVAL_MS: z.coerce.number().int().positive().default(500),
   OUTBOX_BATCH_SIZE: z.coerce.number().int().positive().max(500).default(50),
-  /** Rows that failed this many times are left in the table for inspection and skipped. */
+  /** `attempts` value of a quarantined (unparsable) row; rows at or above it are skipped. */
   OUTBOX_MAX_ATTEMPTS: z.coerce.number().int().positive().default(25),
-  /** Upper bound for one broker round trip (connect, confirms); must stay below the relay's
-   * database statement timeout. */
+  /** Upper bound for one broker wait (connect, channel, exchange, confirms). Keep it below the
+   * relay's `idle_in_transaction_session_timeout` (30 s), which releases the row locks if the
+   * broker hangs anyway. */
   BROKER_TIMEOUT_MS: z.coerce.number().int().positive().default(10_000),
 });
 

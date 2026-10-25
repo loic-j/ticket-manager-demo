@@ -16,30 +16,16 @@ export interface OutboxRelayAsyncOptions extends Pick<ModuleMetadata, 'imports'>
  */
 @Module({})
 export class OutboxRelayModule {
-  static forRoot(config: OutboxRelayConfig): DynamicModule {
-    return this.build({ provide: OUTBOX_RELAY_CONFIG, useValue: config });
-  }
-
   static forRootAsync(options: OutboxRelayAsyncOptions): DynamicModule {
-    return this.build(
-      {
-        provide: OUTBOX_RELAY_CONFIG,
-        useFactory: options.useFactory,
-        inject: options.inject as never[],
-      },
-      options.imports,
-    );
-  }
-
-  private static build(
-    configProvider: NonNullable<DynamicModule['providers']>[number],
-    imports: ModuleMetadata['imports'] = [],
-  ): DynamicModule {
     return {
       module: OutboxRelayModule,
-      imports,
+      imports: options.imports ?? [],
       providers: [
-        configProvider,
+        {
+          provide: OUTBOX_RELAY_CONFIG,
+          useFactory: options.useFactory,
+          inject: options.inject as never[],
+        },
         OutboxDatabase,
         { provide: EVENT_PUBLISHER, useClass: RabbitMqEventPublisher },
         OutboxRelay,

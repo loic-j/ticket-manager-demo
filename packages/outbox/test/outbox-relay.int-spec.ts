@@ -106,7 +106,7 @@ describe('OutboxRelay (integration)', () => {
     expect(ticketCreatedV1.schema.parse(received[0])).toEqual(envelopes[0]);
   });
 
-  it('records the failure and keeps the rows when the broker rejects the batch', async () => {
+  it('records the failure without counting an attempt when the broker rejects the batch', async () => {
     const failing = new OutboxRelay(db, config, {
       publish: async () => {
         throw new Error('broker down');
@@ -118,7 +118,7 @@ describe('OutboxRelay (integration)', () => {
     expect(await failing.drainBatch(later)).toBe(0);
     expect(await stored(envelope.id)).toEqual({
       published_at: null,
-      attempts: 1,
+      attempts: 0, // a broker failure is transient: it never quarantines the row
       last_error: 'broker down',
     });
 
@@ -127,6 +127,51 @@ describe('OutboxRelay (integration)', () => {
     const published = await stored(envelope.id);
     expect(published.published_at).not.toBeNull();
     expect(published.last_error).toBeNull();
+  });
+
+  it('publisher fails for a few ticks then recovers: rows are published and attempts stayed at 0', async () => {
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    let calls = 0;
+    const flaky = new OutboxRelay(
+      db,
+      { ...config, relayIntervalMs: 50 },
+      {
+        publish: async (envelopes) => {
+          if (++calls <= 2) throw new Error(`broker down (${calls})`);
+          return publisher.publish(envelopes);
+        },
+      },
+    );
+    const envelopes = [1, 2].map((n) => created(`Flaky ${n}`, new Date(inOneHour + 20_000 + n)));
+    await append(
+      envelopes.map((e) => ({ id: e.id, payload: e, occurredAt: new Date(e.occurredAt) })),
+    );
+
+    await flaky.tick(later); // 1st failure: backoff = 50 ms
+    expect(calls).toBe(1);
+    expect(await stored(envelopes[0]!.id)).toMatchObject({
+      published_at: null,
+      attempts: 0,
+      last_error: 'broker down (1)',
+    });
+    await flaky.tick(later); // still backing off: the broker is not even asked
+    expect(calls).toBe(1);
+
+    await sleep(60);
+    await flaky.tick(later); // 2nd failure: backoff = 100 ms
+    expect(calls).toBe(2);
+    await sleep(40);
+    await flaky.tick(later); // still backing off
+    expect(calls).toBe(2);
+
+    await sleep(80);
+    await flaky.tick(later); // recovered
+    expect(calls).toBe(3);
+    for (const e of envelopes) {
+      const row = await stored(e.id);
+      expect(row.published_at).not.toBeNull();
+      expect(row).toMatchObject({ attempts: 0, last_error: null });
+    }
   });
 
   it('quarantines an unparsable row and still publishes the valid ones', async () => {

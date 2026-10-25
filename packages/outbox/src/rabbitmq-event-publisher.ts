@@ -9,8 +9,9 @@ type PublisherConfig = Pick<OutboxRelayConfig, 'rabbitmqUrl' | 'exchange' | 'bro
 /**
  * Publishes envelopes to a durable topic exchange with publisher confirms. The connection is
  * opened lazily and dropped on any connection or channel error; the next publish reconnects,
- * so a broker outage only delays the outbox relay. Every broker wait is bounded by
- * `brokerTimeoutMs` so a hung broker cannot hold the relay's database transaction open.
+ * so a broker outage only delays the outbox relay. Every broker wait (connect, channel,
+ * exchange, confirms) is bounded by `brokerTimeoutMs`; the relay's own
+ * `idle_in_transaction_session_timeout` is the last resort if the broker hangs anyway.
  */
 @Injectable()
 export class RabbitMqEventPublisher implements EventPublisher, OnModuleDestroy {
@@ -52,6 +53,8 @@ export class RabbitMqEventPublisher implements EventPublisher, OnModuleDestroy {
     const connection = await this.withTimeout(
       amqp.connect(this.config.rabbitmqUrl, { timeout: this.config.brokerTimeoutMs }),
       'broker connection',
+      // A connection that completes after the race was lost would leak: close it.
+      (late) => void late.close().catch(() => undefined),
     );
     this.connection = connection;
     connection.on('error', (error: unknown) => {
@@ -59,12 +62,15 @@ export class RabbitMqEventPublisher implements EventPublisher, OnModuleDestroy {
     });
     connection.on('close', () => this.reset());
     try {
-      const channel = await connection.createConfirmChannel();
+      const channel = await this.withTimeout(connection.createConfirmChannel(), 'channel');
       channel.on('error', (error: unknown) => {
         this.logger.warn(`RabbitMQ channel error: ${String(error)}`);
       });
       channel.on('close', () => this.reset());
-      await channel.assertExchange(this.config.exchange, 'topic', { durable: true });
+      await this.withTimeout(
+        channel.assertExchange(this.config.exchange, 'topic', { durable: true }),
+        'exchange declaration',
+      );
       return channel;
     } catch (error) {
       await connection.close().catch(() => undefined);
@@ -77,15 +83,31 @@ export class RabbitMqEventPublisher implements EventPublisher, OnModuleDestroy {
     this.connection = undefined;
   }
 
-  private withTimeout<T>(promise: Promise<T>, what: string): Promise<T> {
+  /**
+   * Rejects after `brokerTimeoutMs` if `promise` has not settled. `onLate` receives the value if
+   * the promise still resolves after the timeout (to release what it holds).
+   */
+  private withTimeout<T>(
+    promise: Promise<T>,
+    what: string,
+    onLate?: (value: T) => void,
+  ): Promise<T> {
     let timer: NodeJS.Timeout;
+    let timedOut = false;
     const timeout = new Promise<never>((_, reject) => {
-      timer = setTimeout(
-        () =>
-          reject(new Error(`RabbitMQ ${what} timed out after ${this.config.brokerTimeoutMs}ms`)),
-        this.config.brokerTimeoutMs,
-      );
+      timer = setTimeout(() => {
+        timedOut = true;
+        reject(new Error(`RabbitMQ ${what} timed out after ${this.config.brokerTimeoutMs}ms`));
+      }, this.config.brokerTimeoutMs);
     });
+    if (onLate) {
+      void promise.then(
+        (value) => {
+          if (timedOut) onLate(value);
+        },
+        () => undefined,
+      );
+    }
     return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
   }
 

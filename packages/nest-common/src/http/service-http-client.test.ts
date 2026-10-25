@@ -55,4 +55,16 @@ describe('ServiceHttpClient', () => {
     expect((await client.request('/x')).status).toBe(500);
     expect(fetch).toHaveBeenCalledTimes(1);
   });
+
+  it('adds the missing leading slash to the path', async () => {
+    const fetch = vi.fn(async () => new Response('{}', { status: 200 }));
+    const client = new ServiceHttpClient({
+      baseUrl: 'http://svc/',
+      tokens: { getToken: async () => 't', invalidate: () => undefined },
+      fetch,
+    });
+    await client.request('users/1');
+    const [url] = fetch.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('http://svc/users/1');
+  });
 });

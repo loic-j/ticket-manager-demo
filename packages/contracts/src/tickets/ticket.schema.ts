@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { userIdSchema } from '../auth/auth.schema.js';
 
 export const TICKET_STATUSES = ['open', 'in_progress', 'resolved', 'closed'] as const;
 export const ticketStatusSchema = z.enum(TICKET_STATUSES);
@@ -18,9 +19,9 @@ export const ticketSchema = z.object({
   status: ticketStatusSchema,
   priority: ticketPrioritySchema,
   /** Logto user id (`sub`) of the creator. */
-  createdBy: z.string().min(1),
+  createdBy: userIdSchema,
   /** Logto user id (`sub`) of the last editor. */
-  updatedBy: z.string().min(1),
+  updatedBy: userIdSchema,
   /** Optimistic-concurrency version, 1 at creation, +1 per change. Also orders the events. */
   version: z.number().int().positive(),
   createdAt: z.iso.datetime(),
@@ -49,3 +50,13 @@ export const updateTicketSchema = z
   })
   .partial();
 export type UpdateTicketDto = z.infer<typeof updateTicketSchema>;
+
+/**
+ * Full body of `PATCH /tickets/:id`: the editable fields plus an optional `expectedVersion`.
+ * When present, the update is rejected with 409 if the stored version differs, so a client that
+ * edits from a stale copy never silently overwrites someone else's change.
+ */
+export const updateTicketBodySchema = updateTicketSchema.extend({
+  expectedVersion: ticketSchema.shape.version.optional(),
+});
+export type UpdateTicketBody = z.infer<typeof updateTicketBodySchema>;

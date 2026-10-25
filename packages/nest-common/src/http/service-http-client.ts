@@ -9,9 +9,11 @@ export interface ServiceHttpClientOptions {
   fetch?: typeof globalThis.fetch;
 }
 
-export interface ServiceRequestInit extends Omit<RequestInit, 'signal'> {
+export interface ServiceRequestInit extends Omit<RequestInit, 'signal' | 'body'> {
   /** Forwarded as `x-correlation-id` when present. */
   correlationId?: string;
+  /** Replayable bodies only: the request may be sent twice (fresh token after a 401). */
+  body?: string | URLSearchParams | null;
 }
 
 /**
@@ -30,6 +32,7 @@ export class ServiceHttpClient {
     this.baseUrl = options.baseUrl.replace(/\/$/, '');
   }
 
+  /** `path` is appended to the base URL; a leading slash is added when missing. */
   async request(path: string, init: ServiceRequestInit = {}): Promise<Response> {
     const res = await this.send(path, init);
     if (res.status !== 401) return res;
@@ -43,7 +46,8 @@ export class ServiceHttpClient {
     const requestHeaders = new Headers(headers);
     requestHeaders.set('authorization', `Bearer ${token}`);
     if (correlationId) requestHeaders.set('x-correlation-id', correlationId);
-    return this.fetch(`${this.baseUrl}${path}`, {
+    const url = `${this.baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
+    return this.fetch(url, {
       ...rest,
       headers: requestHeaders,
       signal: AbortSignal.timeout(this.timeoutMs),

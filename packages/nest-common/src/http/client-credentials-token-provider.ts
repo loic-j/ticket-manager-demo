@@ -27,7 +27,8 @@ export class TokenRequestError extends Error {
 
 const tokenResponseSchema = z.object({
   access_token: z.string().min(1),
-  expires_in: z.number(),
+  /** Lifetime in seconds; a non-positive value would make every call refetch a token. */
+  expires_in: z.number().positive(),
 });
 
 /**

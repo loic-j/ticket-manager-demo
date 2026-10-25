@@ -39,14 +39,14 @@ export const ticketDeletedV1 = defineEvent(
   1,
   z.object({
     ticketId: z.uuid(),
-    /** Version of the ticket when it was deleted; a deletion supersedes every lower version. */
+    /**
+     * Version *after* the deletion: the last stored version + 1, so the event supersedes every
+     * `ticket.created` / `ticket.changed` of that ticket in the consumer's staleness check.
+     */
     version: z.number().int().positive(),
     deletedBy: z.string().min(1),
   }),
 );
-
-/** Every ticket event, for consumers that bind `ticket.#`. */
-export const TICKET_EVENTS = [ticketCreatedV1, ticketChangedV1, ticketDeletedV1] as const;
 
 /** Version carried by any ticket event, for consumer-side staleness checks. */
 export function ticketEventVersion(

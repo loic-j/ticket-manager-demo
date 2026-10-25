@@ -47,7 +47,8 @@ model OutboxMessage {
   attempts      Int       @default(0)
   lastError     String?   @map("last_error")
 
-  @@index([publishedAt, sequence], name: "outbox_unpublished_idx")
+  // The partial index on pending rows (`outbox_unpublished_idx`, see sql/outbox_messages.sql)
+  // cannot be expressed in Prisma: it lives in a hand-written migration.
   @@map("outbox_messages")
 }
 ```
@@ -59,7 +60,9 @@ model OutboxMessage {
 - Horizontally scalable: instances take distinct batches through `FOR UPDATE SKIP LOCKED`.
   Publication order is best effort; consumers rely on the aggregate `version` in every event.
 - Unparsable rows are quarantined (`attempts` = `OUTBOX_MAX_ATTEMPTS`, `last_error` set) and
-  skipped; a broker failure increments `attempts` and keeps the rows.
+  skipped. A broker failure is transient: the rows keep `attempts` = 0 (only `last_error` is
+  recorded) and the relay backs off, doubling its pause from `OUTBOX_RELAY_INTERVAL_MS` up to
+  30 s until a publish succeeds.
 
 `pnpm --filter @ticketmanager/outbox test:int` runs the relay against tickets-db and RabbitMQ
 (`pnpm infra:up` first).

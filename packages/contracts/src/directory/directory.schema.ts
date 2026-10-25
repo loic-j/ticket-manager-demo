@@ -1,8 +1,9 @@
 import { z } from 'zod';
+import { userIdSchema } from '../auth/auth.schema.js';
 import { DIRECTORY_BATCH_MAX_IDS } from './directory.constants.js';
 
-/** Logto user id (the `sub` claim). */
-export const directoryUserIdSchema = z.string().trim().min(1).max(64);
+/** Logto user id (the `sub` claim), same bound as `createdBy` / `updatedBy` on tickets. */
+export const directoryUserIdSchema = userIdSchema;
 
 /** A user profile as returned by the directory service. Unknown fields are `null`, never omitted. */
 export const directoryUserSchema = z.object({

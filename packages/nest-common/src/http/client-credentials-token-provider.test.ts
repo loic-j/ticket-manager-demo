@@ -89,4 +89,19 @@ describe('ClientCredentialsTokenProvider', () => {
     const [url] = fetch.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe('http://localhost:3301/oidc/token');
   });
+
+  it('rejects a token answer with a non-positive expires_in', async () => {
+    const fetch = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ access_token: 't', expires_in: 0 }), { status: 200 }),
+    );
+    const provider = new ClientCredentialsTokenProvider({
+      tokenEndpoint: 'http://logto/oidc/token',
+      appId: 'a',
+      appSecret: 's',
+      resource: 'https://svc.local',
+      fetch,
+    });
+    await expect(provider.getToken()).rejects.toThrow();
+  });
 });

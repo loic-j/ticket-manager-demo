@@ -1,10 +1,11 @@
 # ticketmanager3
 
-pnpm + Turborepo monorepo: NestJS 12 services (`apps/tickets-service`, `apps/notifications-service`)
-integrated through RabbitMQ, the tickets outbox relay as its own package (`apps/tickets-relay-service`),
+pnpm + Turborepo monorepo: NestJS 12 services (`apps/tickets-service`, `apps/notifications-service`
+integrated through RabbitMQ; `apps/directory-service`, a database-less user directory called
+synchronously, see ADR 002), the tickets outbox relay as its own package (`apps/tickets-relay-service`),
 Next.js 16 BFF (`apps/web`), shared packages (`contracts` = HTTP Zod schemas, `events` =
-integration events, `nest-common` = auth, `outbox` = relay + table contract), Logto + PostgreSQL + RabbitMQ +
-Mailpit in Docker (`infra/`). Roadmap: `docs/architecture/`.
+integration events, `nest-common` = auth + service-to-service HTTP client, `outbox` = relay +
+table contract), Logto + PostgreSQL + RabbitMQ + Mailpit in Docker (`infra/`). Roadmap: `docs/architecture/`.
 Architecture, setup and design notes live in `README.md` and `docs/`; this file holds the rules and
 commands that are not obvious from the code.
 
@@ -70,7 +71,13 @@ every edited file through a hook; do not hand-format.
 - **Prisma adapters use `this.prisma.db.<model>`**, never `this.prisma.<model>`, so they join the
   ambient transaction of the unit of work.
 - **Databases stay separate**: one PostgreSQL per service (`tickets-db`, `notifications-db`) and
-  one for Logto. A service never reads another service's database; it consumes its events.
+  one for Logto; directory-service owns no database by design (cache only). A service never reads
+  another service's database; it consumes its events.
+- **Synchronous calls between services are the exception**, reserved for read-only lookups whose
+  answer the caller needs now (today: directory-service, ADR 002). They go through
+  `ServiceHttpClient` + `logtoClientCredentials` from `@ticketmanager/nest-common` (M2M token for
+  the callee's resource, timeout, retry on 401) and every caller must degrade gracefully when the
+  callee is down. Never call the Logto Management API from anywhere but directory-service.
 - **Consumers are idempotent and order-independent**: claim the event id in the inbox
   (`PROCESSED_EVENTS`) and advance the aggregate version (`TICKET_VERSIONS`) inside the same unit
   of work as the side effect; a lower or equal version is stale and ignored; unknown event types
@@ -96,8 +103,9 @@ every edited file through a hook; do not hand-format.
   `check-types`, `test` (already wired in `turbo.json`, keep it that way for new packages).
 - Logto in dev mode is `http://localhost:3301`; in full-Docker mode it is
   `http://host.docker.internal:3301` (override file `infra/docker-compose.docker.yml`). Logto
-  refuses an identifier it does not know (`invalid_target`): the API resource
-  `https://api.ticketmanager.local` must exist in the Logto console.
+  refuses an identifier it does not know (`invalid_target`): the three API resources
+  (`https://api.ticketmanager.local`, `https://notifications.ticketmanager.local`,
+  `https://directory.ticketmanager.local`) must exist in the Logto console.
 - The API only loads `apps/tickets-service/.env` through `ConfigModule.forRoot()`; a new env var must be read
   through `ConfigService`, validated with Zod where a config object exists.
 - e2e tests must stay database- and broker-free: `TestAuth.createApp()` overrides the repository

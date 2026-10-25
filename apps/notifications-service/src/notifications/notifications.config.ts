@@ -8,6 +8,8 @@ const envSchema = z.object({
   LOGTO_ENDPOINT: z.url().default('http://localhost:3301'),
   LOGTO_M2M_APP_ID: z.string().optional(),
   LOGTO_M2M_APP_SECRET: z.string().optional(),
+  /** directory-service, called with an M2M token to resolve recipient emails. */
+  DIRECTORY_API_URL: z.url().default('http://localhost:3003'),
   /** Development only: ignored when NODE_ENV=production. */
   NOTIFICATIONS_DEV_FALLBACK_EMAIL: z.email().optional(),
   SMTP_URL: z.string().min(1).default('smtp://localhost:1025'),
@@ -21,6 +23,7 @@ const envSchema = z.object({
 export interface NotificationsConfig {
   logtoEndpoint: string;
   m2m: { appId: string; appSecret: string } | null;
+  directoryApiUrl: string;
   devFallbackEmail: string | null;
   smtpUrl: string;
   mailFrom: string;
@@ -46,6 +49,7 @@ export function loadNotificationsConfig(
   return {
     logtoEndpoint: e.LOGTO_ENDPOINT.replace(/\/$/, ''),
     m2m: hasM2m ? { appId: e.LOGTO_M2M_APP_ID!, appSecret: e.LOGTO_M2M_APP_SECRET! } : null,
+    directoryApiUrl: e.DIRECTORY_API_URL.replace(/\/$/, ''),
     devFallbackEmail: production ? null : (e.NOTIFICATIONS_DEV_FALLBACK_EMAIL ?? null),
     smtpUrl: e.SMTP_URL,
     mailFrom: e.MAIL_FROM,

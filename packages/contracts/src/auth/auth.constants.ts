@@ -5,3 +5,4 @@
  */
 export const TICKETS_API_RESOURCE = 'https://api.ticketmanager.local';
 export const NOTIFICATIONS_API_RESOURCE = 'https://notifications.ticketmanager.local';
+export const DIRECTORY_API_RESOURCE = 'https://directory.ticketmanager.local';

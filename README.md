@@ -1,7 +1,7 @@
 # ticketmanager3
 
-pnpm + Turborepo monorepo: a Next.js BFF, NestJS microservices (tickets, notifications) talking
-through RabbitMQ, and shared typed contracts.
+pnpm + Turborepo monorepo: a Next.js BFF, NestJS microservices (tickets, notifications talking
+through RabbitMQ, a synchronous user directory) and shared typed contracts.
 The microservices roadmap lives in `docs/architecture/`.
 
 ```
@@ -9,14 +9,15 @@ apps/
   tickets-service/        NestJS 12: tickets API, CQRS, transactional outbox → http://localhost:3001
   tickets-relay-service/  NestJS 12 (headless): publishes the tickets outbox to RabbitMQ, own image
   notifications-service/  NestJS 12: consumes ticket events, emails, inbox API → http://localhost:3002
+  directory-service/      NestJS 12: user directory over the Logto Management API, no DB → http://localhost:3003
   web/        Next.js 16 (App Router, Tailwind 4, ESLint) → http://localhost:3000
 infra/
-  docker-compose.yml         Logto + its PostgreSQL, tickets PostgreSQL, RabbitMQ, Mailpit (+ apps under profile "apps")
+  docker-compose.yml         Logto + its PostgreSQL, one PostgreSQL per service, RabbitMQ, Mailpit (+ apps under profile "apps")
   docker-compose.docker.yml  Override for the full-Docker mode (Logto exposed as host.docker.internal)
 packages/
   contracts/          @ticketmanager/contracts — Zod schemas + inferred types (the HTTP contract)
   events/             @ticketmanager/events — integration event envelope + versioned ticket events
-  nest-common/        @ticketmanager/nest-common — Logto auth guard, decorators shared by NestJS services
+  nest-common/        @ticketmanager/nest-common — Logto auth guard, decorators, service-to-service HTTP client (M2M tokens)
   outbox/             @ticketmanager/outbox — outbox relay (pg + RabbitMQ) and the outbox_messages table contract
   typescript-config/  @ticketmanager/typescript-config — shared tsconfig presets
 ```
@@ -42,14 +43,14 @@ and caches results.
 | `pnpm test:e2e`    | API e2e tests (supertest)                               |
 | `pnpm format`      | Prettier on the whole repo                              |
 
-Day-to-day: `pnpm infra:up` once, then `pnpm dev`, which starts every process: the two HTTP
+Day-to-day: `pnpm infra:up` once, then `pnpm dev`, which starts every process: the three HTTP
 services, the tickets relay (`apps/tickets-relay-service`), the notifications email-retry worker
 (second entry point of notifications-service) and the web app.
 
 Target a single package with a filter, e.g. `pnpm turbo run dev --filter=@ticketmanager/tickets-service`,
 or run its own scripts with `pnpm --filter @ticketmanager/web dev`.
 
-Copy `apps/tickets-service/.env.example` and `apps/web/.env.example` to `.env` to override ports / URLs.
+Copy each `apps/*/.env.example` to `.env` (`.env.local` for the web app) to override ports / URLs.
 
 ## How type sharing works
 
@@ -76,14 +77,17 @@ Docker with **its own PostgreSQL**, separate from the future tickets database.
 ```
 Browser ──► Next.js (:3000) ──OIDC──► Logto (:3301, console :3302)
                │  encrypted session cookie (@logto/next)
-               └──► NestJS API (:3001) with `Authorization: Bearer <access token>`
-                         └── verifies the JWT (jose): JWKS signature, issuer, audience
+               └──► NestJS services (:3001 tickets, :3002 notifications, :3003 directory)
+                    with `Authorization: Bearer <access token>` issued for that service's resource
+                         └── each verifies the JWT (jose): JWKS signature, issuer, audience
 ```
 
 The browser never calls the API directly: Next.js Server Components and Server Actions call it
-server-side with an access token issued for the API resource `https://api.ticketmanager.local`
-(constant `TICKETS_API_RESOURCE` in `@ticketmanager/contracts`). On the API side, a global guard
-requires a valid token on every route except those marked `@Public()` (`apps/tickets-service/src/auth/`).
+server-side with an access token issued per service: `https://api.ticketmanager.local`
+(`TICKETS_API_RESOURCE`), `https://notifications.ticketmanager.local` and
+`https://directory.ticketmanager.local` (constants in `@ticketmanager/contracts`). On the API
+side, a global guard (`@ticketmanager/nest-common`) requires a valid token on every route except
+those marked `@Public()`.
 The e2e tests replace the verifier with a local key pair: they run without Logto or Docker.
 
 ### One-time setup
@@ -96,9 +100,12 @@ The e2e tests replace the verifier with a local key pair: they run without Logto
    - Redirect URI: `http://localhost:3000/callback`
    - Post sign-out redirect URI: `http://localhost:3000/`
    - Copy the _App ID_ and an _App secret_.
-4. **API resources → Create API resource**: name `ticketmanager-tickets-service`, identifier
-   `https://api.ticketmanager.local`. Without it Logto refuses to issue the API token
-   (`invalid_target`).
+4. **API resources → Create API resource**, once per service: `ticketmanager-tickets-service`
+   (`https://api.ticketmanager.local`), `ticketmanager-notifications-service`
+   (`https://notifications.ticketmanager.local`) and `ticketmanager-directory-service`
+   (`https://directory.ticketmanager.local`). Without them Logto refuses to issue the API tokens
+   (`invalid_target`). The directory also needs the machine-to-machine setup described under
+   "directory-service" below; without it names are not resolved but everything else works.
 5. **Users → Add user**: create a test user (or enable sign-up under _Sign-in experience_).
 6. Create `apps/web/.env.local` from `apps/web/.env.example` with the App ID, the App secret and a
    `LOGTO_COOKIE_SECRET` of 32+ characters (`openssl rand -base64 32`).
@@ -200,15 +207,39 @@ so a Logto or SMTP outage delays them instead of losing them. The handler is
 idempotent through an **inbox** table (`processed_events`, claimed in the same transaction as the
 notification row), so the at-least-once delivery never produces a second notification or email.
 `ticket.created` and `ticket.status-changed` notify the ticket creator; the recipient's email is
-resolved through the Logto Management API with a machine-to-machine token (or
-`NOTIFICATIONS_DEV_FALLBACK_EMAIL` locally) and sent over SMTP to Mailpit. The service also
-exposes `GET /notifications` and `POST /notifications/:id/read`, scoped to the caller, for the
-web inbox.
+resolved through directory-service (synchronous `GET /users/:id` with a machine-to-machine token,
+or `NOTIFICATIONS_DEV_FALLBACK_EMAIL` locally when no M2M credentials are set) and sent over SMTP
+to Mailpit. The service also exposes `GET /notifications` and `POST /notifications/:id/read`,
+scoped to the caller, for the web inbox.
 
-Logto setup for this service (once): **API resources → Create** `https://notifications.ticketmanager.local`
-(the web app requests tokens for it); optionally **Applications → Machine-to-machine** with the
-_Logto Management API access_ role, then put its App ID / secret in
-`apps/notifications-service/.env` (`LOGTO_M2M_APP_ID`, `LOGTO_M2M_APP_SECRET`) and `infra/.env`.
+### directory-service (synchronous user directory)
+
+`apps/directory-service` is the one service that is **called synchronously** (ADR 002): the
+callers need its answer to build their own. It is a read-only facade over the Logto Management
+API with an in-memory cache (10 min, 60 s for unknown ids, `DIRECTORY_CACHE_*`) and no database.
+`GET /users?ids=a,b` (up to 50 distinct ids, unknown ones omitted) and `GET /users/:id` return
+`{ id, name, email, avatar }`. The web app calls it once per ticket list to show "Created by …"
+and falls back to the raw id when it is unavailable; notifications-service calls it to resolve
+recipient emails and lets the email-retry worker try again when it is down. Outgoing calls share
+`ServiceHttpClient` + `logtoClientCredentials` from `@ticketmanager/nest-common` (cached
+`client_credentials` token, timeout, one retry on 401).
+
+Logto setup (once, Console):
+
+1. **API resources → Create** `https://directory.ticketmanager.local` (the web app requests tokens
+   for it; existing sessions must sign out and in again). In that resource, **Permissions →
+   Create** `read:users`.
+2. **Roles → Create role**, type _Machine-to-machine_, name `directory-client`, with the
+   `read:users` permission of the directory resource.
+3. **Applications → Create application → Machine-to-machine**, name `ticketmanager-services`,
+   and assign it two roles: _Logto Management API access_ (lets directory-service read users)
+   and `directory-client` (lets notifications-service call directory-service). Put its App ID /
+   secret in `apps/directory-service/.env`, `apps/notifications-service/.env` and `infra/.env`
+   (`LOGTO_M2M_APP_ID`, `LOGTO_M2M_APP_SECRET`). For least privilege, use two M2M apps with one
+   role each: the variable names are the same, only the values differ per service.
+
+The guard checks issuer and audience only, so both user tokens (web) and M2M tokens are accepted;
+enforcing `read:users` is left to the RBAC step mentioned above.
 
 ## Database (Prisma + PostgreSQL)
 
@@ -243,6 +274,7 @@ target, selected by `target:` in compose):
 | `ticketmanager-notifications-service`     | `apps/notifications-service` → `runner`      | HTTP API + RabbitMQ consumer             |
 | `ticketmanager-notifications-email-retry` | `apps/notifications-service` → `email-retry` | email retry worker, scalable             |
 | `ticketmanager-notifications-migrate`     | `apps/notifications-service` → `migrate`     | `prisma migrate deploy`, runs once       |
+| `ticketmanager-directory-service`         | `apps/directory-service` → `runner`          | HTTP API, no database                    |
 | `ticketmanager-web`                       | `apps/web`                                   | Next.js standalone                       |
 
 The worker services are declared in `infra/compose/*.yml` and pulled into the main project with
@@ -264,8 +296,8 @@ imported by the worker entry point).
 - Stop with `pnpm docker:down`. To go back to the host dev mode, run `pnpm infra:up` again: it
   recreates Logto with its `localhost` endpoints.
 
-Configuration is read at runtime from the environment (`TICKETS_API_URL`, `BASE_URL`, `LOGTO_*`,
-`DATABASE_URL`), so the same images work in both modes. Nothing in the web app uses
+Configuration is read at runtime from the environment (`TICKETS_API_URL`, `NOTIFICATIONS_API_URL`,
+`DIRECTORY_API_URL`, `BASE_URL`, `LOGTO_*`, `DATABASE_URL`), so the same images work in both modes. Nothing in the web app uses
 `NEXT_PUBLIC_*` variables: the browser never calls the API or holds a token.
 
 ## Dependency versions

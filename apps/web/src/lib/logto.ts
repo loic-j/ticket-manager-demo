@@ -1,5 +1,9 @@
 import { UserScope, type LogtoNextConfig } from '@logto/next';
-import { NOTIFICATIONS_API_RESOURCE, TICKETS_API_RESOURCE } from '@ticketmanager/contracts';
+import {
+  DIRECTORY_API_RESOURCE,
+  NOTIFICATIONS_API_RESOURCE,
+  TICKETS_API_RESOURCE,
+} from '@ticketmanager/contracts';
 import { z } from 'zod';
 
 const envSchema = z.object({
@@ -27,8 +31,9 @@ export function getLogtoConfig(): LogtoNextConfig {
     cookieSecret: env.LOGTO_COOKIE_SECRET,
     cookieSecure: process.env.NODE_ENV === 'production',
     scopes: [UserScope.Email, UserScope.Profile],
-    // Access tokens for each backend service (both resources must exist in the Logto console).
-    resources: [TICKETS_API_RESOURCE, NOTIFICATIONS_API_RESOURCE],
+    // Access tokens for each backend service (every resource must exist in the Logto console;
+    // adding one here requires existing sessions to sign out and in again).
+    resources: [TICKETS_API_RESOURCE, NOTIFICATIONS_API_RESOURCE, DIRECTORY_API_RESOURCE],
   };
   return cached;
 }

@@ -13,7 +13,8 @@ import {
 } from './application/ports/index.js';
 import { NOTIFICATION_QUERY_HANDLERS } from './application/queries/index.js';
 import { NOTIFICATION_REPOSITORY } from './domain/notification.repository.js';
-import { LogtoUserDirectory } from './infrastructure/logto-user-directory.js';
+import { DevFallbackUserDirectory } from './infrastructure/dev-fallback-user-directory.js';
+import { HttpUserDirectory } from './infrastructure/http-user-directory.js';
 import {
   PrismaNotificationReadRepository,
   PrismaNotificationRepository,
@@ -22,7 +23,11 @@ import { PrismaProcessedEvents } from './infrastructure/prisma-processed-events.
 import { PrismaTicketVersions } from './infrastructure/prisma-ticket-versions.js';
 import { PrismaUnitOfWork } from './infrastructure/prisma-unit-of-work.js';
 import { SmtpMailer } from './infrastructure/smtp-mailer.js';
-import { NOTIFICATIONS_CONFIG, loadNotificationsConfig } from './notifications.config.js';
+import {
+  NOTIFICATIONS_CONFIG,
+  loadNotificationsConfig,
+  type NotificationsConfig,
+} from './notifications.config.js';
 
 /**
  * Handlers, ports and adapters of the notifications context, shared by every process
@@ -44,7 +49,13 @@ import { NOTIFICATIONS_CONFIG, loadNotificationsConfig } from './notifications.c
     { provide: PROCESSED_EVENTS, useClass: PrismaProcessedEvents },
     { provide: TICKET_VERSIONS, useClass: PrismaTicketVersions },
     { provide: UNIT_OF_WORK, useClass: PrismaUnitOfWork },
-    { provide: USER_DIRECTORY, useClass: LogtoUserDirectory },
+    {
+      // Recipients come from directory-service; without M2M credentials (dev) a fixed address.
+      provide: USER_DIRECTORY,
+      useFactory: (config: NotificationsConfig) =>
+        config.m2m ? new HttpUserDirectory(config) : new DevFallbackUserDirectory(config),
+      inject: [NOTIFICATIONS_CONFIG],
+    },
     { provide: MAILER, useClass: SmtpMailer },
   ],
   exports: [CqrsModule, EmailDeliveryService, NOTIFICATIONS_CONFIG, NOTIFICATION_REPOSITORY],

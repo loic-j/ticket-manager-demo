@@ -1,0 +1,49 @@
+{
+  "name": "@ticketmanager/directory-service",
+  "version": "0.0.1",
+  "description": "User directory: read-only facade over the Logto Management API, called synchronously by the web BFF and other services",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "scripts": {
+    "build": "rm -rf dist && nest build",
+    "dev": "rm -rf dist && nest build && concurrently -n build,http -c gray,blue \"nest build --watch --preserveWatchOutput\" \"node --watch --watch-preserve-output dist/main.js\"",
+    "start": "nest start",
+    "start:prod": "node dist/main",
+    "check-types": "tsc --noEmit",
+    "lint": "oxlint --type-aware src/ test/",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@nestjs/common": "^12.0.1",
+    "@nestjs/config": "^12.0.1",
+    "@nestjs/core": "^12.0.1",
+    "@nestjs/cqrs": "^12.1.1",
+    "@nestjs/platform-express": "^12.0.1",
+    "@ticketmanager/contracts": "workspace:*",
+    "@ticketmanager/nest-common": "workspace:*",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^12.0.0",
+    "@nestjs/schematics": "^12.0.0",
+    "@nestjs/testing": "^12.0.1",
+    "@ticketmanager/typescript-config": "workspace:*",
+    "@types/express": "^5.0.0",
+    "@types/node": "catalog:",
+    "@types/supertest": "^7.0.0",
+    "concurrently": "^10.0.6",
+    "jose": "^6.2.13",
+    "oxlint": "^1.58.0",
+    "oxlint-tsgolint": "^7.0.2001",
+    "supertest": "^7.0.0",
+    "typescript": "catalog:",
+    "vite": "^8.0.0",
+    "vitest": "catalog:"
+  }
+}

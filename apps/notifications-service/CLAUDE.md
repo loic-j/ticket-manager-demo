@@ -22,12 +22,15 @@ version)` run inside `UNIT_OF_WORK.run()` with the notification insert; a duplic
 - Which event produces which notification lives in
   `application/commands/ticket-event-notifications.ts` (pure, unit-tested). Unknown events are
   ignored, never rejected.
-- Recipient email comes from `USER_DIRECTORY` (Logto Management API via M2M client credentials,
-  cached 10 min). Without `LOGTO_M2M_APP_ID/SECRET` it uses `NOTIFICATIONS_DEV_FALLBACK_EMAIL`.
+- Recipient email comes from `USER_DIRECTORY`: `HttpUserDirectory` calls directory-service
+  (`GET /users/:id`, `DIRECTORY_API_URL`) with an M2M token for `DIRECTORY_API_RESOURCE` through
+  `ServiceHttpClient` from `@ticketmanager/nest-common` (ADR 002). Without
+  `LOGTO_M2M_APP_ID/SECRET` the module binds `DevFallbackUserDirectory`, which answers
+  `NOTIFICATIONS_DEV_FALLBACK_EMAIL` for everyone. Never call the Logto Management API from here.
 - HTTP: `GET /notifications` and `POST /notifications/:id/read` are scoped to the token `sub`;
   foreign ids answer 404. Audience: `NOTIFICATIONS_API_RESOURCE`.
 - Env (`.env.example`): `PORT`, `CORS_ORIGIN`, `DATABASE_URL` (notifications-db :5434),
-  `LOGTO_*`, `LOGTO_M2M_*`, `NOTIFICATIONS_DEV_FALLBACK_EMAIL`, `RABBITMQ_URL`, `EVENTS_EXCHANGE`,
+  `LOGTO_*`, `LOGTO_M2M_*`, `DIRECTORY_API_URL`, `NOTIFICATIONS_DEV_FALLBACK_EMAIL`, `RABBITMQ_URL`, `EVENTS_EXCHANGE`,
   `CONSUMER_ENABLED`, `CONSUMER_PREFETCH`, `CONSUMER_DELIVERY_LIMIT`, `SMTP_URL`, `MAIL_FROM`,
   `EMAIL_RETRY_INTERVAL_MS`, `EMAIL_RETRY_DELAY_MS`, `EMAIL_MAX_ATTEMPTS`. Read via `ConfigService`. The dev fallback email is
   ignored when `NODE_ENV=production`.

@@ -1,5 +1,6 @@
-# Local infrastructure. Default profile: Logto (auth) + its PostgreSQL + the tickets PostgreSQL
-# + Mailpit (local mail catcher). Profile "apps" adds the tickets-service and web images (see
+# Local infrastructure. Default profile: Logto (auth) + its PostgreSQL + one PostgreSQL per
+# service + RabbitMQ + Mailpit (local mail catcher). Profile "apps" adds the service images
+# (tickets :3001, notifications :3002, directory :3003, web :3000) and their workers (see
 # docker-compose.docker.yml for the Logto override).
 #   pnpm infra:up / infra:down / infra:logs      pnpm docker:build / docker:up / docker:down
 # Console: http://localhost:3302   OIDC endpoint: http://localhost:3301
@@ -170,6 +171,8 @@ services:
         condition: service_started
       logto:
         condition: service_started
+      directory-service:
+        condition: service_started
     ports:
       - '3002:3002'
     extra_hosts:
@@ -186,6 +189,29 @@ services:
       RABBITMQ_URL: amqp://ticketmanager:ticketmanager@rabbitmq:5672
       SMTP_URL: smtp://mailpit:1025
       MAIL_FROM: Ticket Manager <noreply@ticketmanager.local>
+      DIRECTORY_API_URL: http://directory-service:3003
+
+  # User directory: read-only facade over the Logto Management API, no database (ADR 002).
+  directory-service:
+    profiles: ['apps']
+    build:
+      context: ..
+      dockerfile: apps/directory-service/Dockerfile
+      target: runner
+    depends_on:
+      logto:
+        condition: service_started
+    ports:
+      - '3003:3003'
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    env_file:
+      - path: ./.env
+        required: true
+    environment:
+      PORT: 3003
+      LOGTO_ENDPOINT: http://host.docker.internal:3301
+      LOGTO_API_RESOURCE: https://directory.ticketmanager.local
 
   web:
     profiles: ['apps']
@@ -195,6 +221,7 @@ services:
     depends_on:
       - tickets-service
       - notifications-service
+      - directory-service
     ports:
       - '3000:3000'
     extra_hosts:
@@ -205,6 +232,7 @@ services:
     environment:
       TICKETS_API_URL: http://tickets-service:3001
       NOTIFICATIONS_API_URL: http://notifications-service:3002
+      DIRECTORY_API_URL: http://directory-service:3003
       BASE_URL: http://localhost:3000
       LOGTO_ENDPOINT: http://host.docker.internal:3301
 

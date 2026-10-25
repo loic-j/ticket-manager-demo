@@ -1,6 +1,7 @@
 import Link from 'next/link';
-import type { Ticket } from '@ticketmanager/contracts';
-import { ApiError, ticketsApi } from '@/lib/api';
+import type { DirectoryUser, Ticket } from '@ticketmanager/contracts';
+import { ApiError, directoryApi, ticketsApi } from '@/lib/api';
+import { userLabel } from '@/lib/users';
 
 export async function TicketList() {
   let tickets: Ticket[];
@@ -21,6 +22,12 @@ export async function TicketList() {
     return <p className="text-zinc-500">No tickets yet.</p>;
   }
 
+  // One batched directory call for every creator; if the directory is down the raw ids show.
+  const creators: DirectoryUser[] = await directoryApi
+    .getUsers(tickets.map((t) => t.createdBy))
+    .catch(() => []);
+  const byId = new Map(creators.map((u) => [u.id, u]));
+
   return (
     <ul className="flex flex-col gap-3">
       {tickets.map((ticket) => (
@@ -39,6 +46,9 @@ export async function TicketList() {
           {ticket.description && (
             <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{ticket.description}</p>
           )}
+          <p className="mt-2 text-xs text-zinc-500">
+            Created by {userLabel(byId.get(ticket.createdBy), ticket.createdBy)}
+          </p>
         </li>
       ))}
     </ul>

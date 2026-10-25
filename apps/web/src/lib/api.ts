@@ -1,8 +1,12 @@
 import { getAccessToken, getAccessTokenRSC } from '@logto/next/server-actions';
 import {
+  DIRECTORY_API_RESOURCE,
+  DIRECTORY_BATCH_MAX_IDS,
   NOTIFICATIONS_API_RESOURCE,
   TICKETS_API_RESOURCE,
   type CreateTicketInput,
+  type DirectoryUser,
+  type DirectoryUsersResponse,
   type Notification,
   type Ticket,
   type UpdateTicketDto,
@@ -13,6 +17,7 @@ import { getLogtoConfig } from './logto';
 // used and can be set at runtime, e.g. in Docker.
 const TICKETS_API_URL = process.env.TICKETS_API_URL ?? 'http://localhost:3001';
 const NOTIFICATIONS_API_URL = process.env.NOTIFICATIONS_API_URL ?? 'http://localhost:3002';
+const DIRECTORY_API_URL = process.env.DIRECTORY_API_URL ?? 'http://localhost:3003';
 
 export class ApiError extends Error {
   constructor(
@@ -41,6 +46,7 @@ const notifications: Service = {
   baseUrl: NOTIFICATIONS_API_URL,
   resource: NOTIFICATIONS_API_RESOURCE,
 };
+const directory: Service = { baseUrl: DIRECTORY_API_URL, resource: DIRECTORY_API_RESOURCE };
 
 async function bearer(service: Service, context: CallContext): Promise<string> {
   const config = getLogtoConfig();
@@ -93,4 +99,28 @@ export const notificationsApi = {
   /** Server Actions only. */
   markRead: (id: string) =>
     api<void>(notifications, `/notifications/${id}/read`, 'action', { method: 'POST' }),
+};
+
+export const directoryApi = {
+  /**
+   * Server Components only. Profiles of the given Logto user ids; unknown ids are omitted.
+   * Deduplicates and splits the ids into batches the directory accepts.
+   */
+  getUsers: async (ids: readonly string[]): Promise<DirectoryUser[]> => {
+    const distinct = [...new Set(ids)];
+    const batches: string[][] = [];
+    for (let i = 0; i < distinct.length; i += DIRECTORY_BATCH_MAX_IDS) {
+      batches.push(distinct.slice(i, i + DIRECTORY_BATCH_MAX_IDS));
+    }
+    const responses = await Promise.all(
+      batches.map((batch) =>
+        api<DirectoryUsersResponse>(
+          directory,
+          `/users?ids=${encodeURIComponent(batch.join(','))}`,
+          'rsc',
+        ),
+      ),
+    );
+    return responses.flatMap((r) => r.users);
+  },
 };

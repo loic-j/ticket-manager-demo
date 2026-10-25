@@ -16,10 +16,14 @@
 - Per-request data lives in nested async Server Components, each inside its own `<Suspense>`
   and calling `await connection()` itself (a parent's call does not cover siblings). Pending
   states: `SubmitButton` (`'use client'`, `useFormStatus`) rendered inside the `<form>`.
-- `src/lib/api.ts` holds one client per service (`ticketsApi`, `notificationsApi`); each
-  service has its own Logto resource, both listed in `getLogtoConfig().resources`.
+- `src/lib/api.ts` holds one client per service (`ticketsApi`, `notificationsApi`,
+  `directoryApi`); each service has its own Logto resource, all listed in
+  `getLogtoConfig().resources` (adding one forces users to sign in again).
+- The directory is an optional dependency: `directoryApi.getUsers()` is called once per list with
+  every id, and a failure falls back to the raw id (`userLabel` in `src/lib/users.ts`). Never let a
+  directory outage break a page.
 - Env (server-only, runtime-read, no `NEXT_PUBLIC_*`): `TICKETS_API_URL`, `NOTIFICATIONS_API_URL`,
-  `BASE_URL`, `LOGTO_ENDPOINT`,
+  `DIRECTORY_API_URL`, `BASE_URL`, `LOGTO_ENDPOINT`,
   `LOGTO_APP_ID`, `LOGTO_APP_SECRET`, `LOGTO_COOKIE_SECRET` in `.env.local` (gitignored).
 - Lint: ESLint flat config with `eslint-config-next`; the React hooks rule forbids JSX inside
   `try/catch` (use `.catch()` on the promise instead).

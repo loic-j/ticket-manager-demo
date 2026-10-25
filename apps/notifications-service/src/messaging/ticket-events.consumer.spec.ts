@@ -19,11 +19,20 @@ function message(body: unknown, headers: Record<string, unknown> = {}): ConsumeM
 }
 
 describe('TicketEventsConsumer.handle', () => {
+  const now = new Date().toISOString();
   const event = ticketCreatedV1.create({
-    ticketId: crypto.randomUUID(),
-    title: 'T',
-    priority: 'low',
-    createdBy: 'u1',
+    ticket: {
+      id: crypto.randomUUID(),
+      title: 'T',
+      description: '',
+      status: 'open',
+      priority: 'low',
+      createdBy: 'u1',
+      updatedBy: 'u1',
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    },
   });
   let acks: number;
   let nacks: { requeue: boolean }[];

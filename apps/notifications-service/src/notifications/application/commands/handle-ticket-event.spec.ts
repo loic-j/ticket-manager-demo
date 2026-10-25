@@ -1,3 +1,4 @@
+import type { TicketStatus } from '@ticketmanager/contracts';
 import { ticketChangedV1, ticketCreatedV1, ticketDeletedV1 } from '@ticketmanager/events';
 import { EmailDeliveryService } from '../email-delivery.service.js';
 import {
@@ -27,7 +28,7 @@ const ticket = {
   updatedAt: new Date().toISOString(),
 };
 const created = () => ticketCreatedV1.create({ ticket });
-const changed = (version: number, status: typeof ticket.status, previousStatus = ticket.status) =>
+const changed = (version: number, status: TicketStatus, previousStatus: TicketStatus = 'open') =>
   ticketChangedV1.create({
     ticket: { ...ticket, version, status },
     changedFields: ['status'],

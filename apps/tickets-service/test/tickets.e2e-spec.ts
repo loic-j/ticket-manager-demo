@@ -41,7 +41,7 @@ describe('Tickets (e2e)', () => {
     expect(ticket.version).toBe(1);
     expect(auth.outbox.events.at(-1)?.envelope).toMatchObject({
       type: 'ticket.created',
-      payload: { ticketId: ticket.id },
+      payload: { ticket: { id: ticket.id, version: 1 } },
     });
   });
 

@@ -1,10 +1,15 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
-import { DatabaseModule } from './database/database.module.js';
-import { OutboxRelayModule } from './messaging/outbox-relay.module.js';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { OutboxRelayModule, loadOutboxRelayConfig } from '@ticketmanager/outbox';
 
-/** Root module of the outbox relay process: no HTTP, no auth, no controllers. */
+/** Root module of the outbox relay process: no HTTP, no auth, no Prisma, no controllers. */
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true }), DatabaseModule, OutboxRelayModule],
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
+    OutboxRelayModule.forRootAsync({
+      useFactory: (config: ConfigService) => loadOutboxRelayConfig(config),
+      inject: [ConfigService],
+    }),
+  ],
 })
 export class RelayModule {}

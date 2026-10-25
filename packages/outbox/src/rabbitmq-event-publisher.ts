@@ -1,8 +1,10 @@
 import { Inject, Injectable, Logger, type OnModuleDestroy } from '@nestjs/common';
 import type { EventEnvelope } from '@ticketmanager/events';
 import amqp, { type ChannelModel, type ConfirmChannel } from 'amqplib';
-import { MESSAGING_CONFIG, type MessagingConfig } from '../messaging.config.js';
-import type { EventPublisher } from '../application/ports/event-publisher.js';
+import type { EventPublisher } from './event-publisher.js';
+import { OUTBOX_RELAY_CONFIG, type OutboxRelayConfig } from './outbox-relay.config.js';
+
+type PublisherConfig = Pick<OutboxRelayConfig, 'rabbitmqUrl' | 'exchange' | 'brokerTimeoutMs'>;
 
 /**
  * Publishes envelopes to a durable topic exchange with publisher confirms. The connection is
@@ -16,7 +18,7 @@ export class RabbitMqEventPublisher implements EventPublisher, OnModuleDestroy {
   private connecting?: Promise<ConfirmChannel>;
   private connection?: ChannelModel;
 
-  constructor(@Inject(MESSAGING_CONFIG) private readonly config: MessagingConfig) {}
+  constructor(@Inject(OUTBOX_RELAY_CONFIG) private readonly config: PublisherConfig) {}
 
   async publish(envelopes: EventEnvelope[]): Promise<void> {
     if (envelopes.length === 0) return;

@@ -1,21 +1,23 @@
-import type { ConfigService } from '@nestjs/config';
 import { z } from 'zod';
 
-export const MESSAGING_CONFIG = Symbol('MESSAGING_CONFIG');
+export const OUTBOX_RELAY_CONFIG = Symbol('OUTBOX_RELAY_CONFIG');
 
 const envSchema = z.object({
+  /** Database holding the `outbox_messages` table (the producing service's database). */
+  DATABASE_URL: z.string().min(1),
   RABBITMQ_URL: z.string().min(1).default('amqp://ticketmanager:ticketmanager@localhost:5672'),
   EVENTS_EXCHANGE: z.string().min(1).default('ticketmanager.events'),
   OUTBOX_RELAY_INTERVAL_MS: z.coerce.number().int().positive().default(500),
   OUTBOX_BATCH_SIZE: z.coerce.number().int().positive().max(500).default(50),
   /** Rows that failed this many times are left in the table for inspection and skipped. */
   OUTBOX_MAX_ATTEMPTS: z.coerce.number().int().positive().default(25),
-  /** Upper bound for one broker round trip (connect, confirms); must stay below the DB
-   * transaction timeout of the relay. */
+  /** Upper bound for one broker round trip (connect, confirms); must stay below the relay's
+   * database statement timeout. */
   BROKER_TIMEOUT_MS: z.coerce.number().int().positive().default(10_000),
 });
 
-export type MessagingConfig = {
+export type OutboxRelayConfig = {
+  databaseUrl: string;
   rabbitmqUrl: string;
   exchange: string;
   relayIntervalMs: number;
@@ -25,9 +27,11 @@ export type MessagingConfig = {
 };
 
 type Env = Partial<Record<keyof z.input<typeof envSchema>, string | undefined>>;
+/** Anything with a `get(key)` such as NestJS `ConfigService`, or a plain env object. */
+type ConfigSource = { get<T = string>(key: string): T | undefined } | Env;
 
-/** Reads the variables through `ConfigService` (which loaded `.env`) or from a plain object. */
-export function loadMessagingConfig(source: Pick<ConfigService, 'get'> | Env): MessagingConfig {
+/** Reads the variables through a `ConfigService`-like source (which loaded `.env`) or a plain object. */
+export function loadOutboxRelayConfig(source: ConfigSource): OutboxRelayConfig {
   const env: Env =
     'get' in source && typeof source.get === 'function'
       ? Object.fromEntries(
@@ -36,6 +40,7 @@ export function loadMessagingConfig(source: Pick<ConfigService, 'get'> | Env): M
       : (source as Env);
   const e = envSchema.parse(env);
   return {
+    databaseUrl: e.DATABASE_URL,
     rabbitmqUrl: e.RABBITMQ_URL,
     exchange: e.EVENTS_EXCHANGE,
     relayIntervalMs: e.OUTBOX_RELAY_INTERVAL_MS,

@@ -1,9 +1,7 @@
-import type { EventEnvelope } from '@ticketmanager/events';
-import type { EventPublisher } from '../application/ports/event-publisher.js';
 import type { Outbox, OutboxEvent } from '../application/ports/outbox.js';
 import type { UnitOfWork } from '../application/ports/unit-of-work.js';
 
-/** Test doubles for the messaging ports (no database, no broker). */
+/** Test doubles for the messaging ports (no database). */
 
 export class ImmediateUnitOfWork implements UnitOfWork {
   run<T>(work: () => Promise<T>): Promise<T> {
@@ -16,13 +14,5 @@ export class InMemoryOutbox implements Outbox {
 
   async append(events: OutboxEvent[]): Promise<void> {
     this.events.push(...events);
-  }
-}
-
-export class CapturingEventPublisher implements EventPublisher {
-  readonly published: EventEnvelope[] = [];
-
-  async publish(envelopes: EventEnvelope[]): Promise<void> {
-    this.published.push(...envelopes);
   }
 }

@@ -7,6 +7,7 @@ import {
   MAILER,
   NOTIFICATION_READ_REPOSITORY,
   PROCESSED_EVENTS,
+  TICKET_VERSIONS,
   UNIT_OF_WORK,
   USER_DIRECTORY,
 } from './application/ports/index.js';
@@ -18,6 +19,7 @@ import {
   PrismaNotificationRepository,
 } from './infrastructure/prisma-notification.repository.js';
 import { PrismaProcessedEvents } from './infrastructure/prisma-processed-events.js';
+import { PrismaTicketVersions } from './infrastructure/prisma-ticket-versions.js';
 import { PrismaUnitOfWork } from './infrastructure/prisma-unit-of-work.js';
 import { SmtpMailer } from './infrastructure/smtp-mailer.js';
 import { NOTIFICATIONS_CONFIG, loadNotificationsConfig } from './notifications.config.js';
@@ -40,6 +42,7 @@ import { NOTIFICATIONS_CONFIG, loadNotificationsConfig } from './notifications.c
     { provide: NOTIFICATION_REPOSITORY, useClass: PrismaNotificationRepository },
     { provide: NOTIFICATION_READ_REPOSITORY, useClass: PrismaNotificationReadRepository },
     { provide: PROCESSED_EVENTS, useClass: PrismaProcessedEvents },
+    { provide: TICKET_VERSIONS, useClass: PrismaTicketVersions },
     { provide: UNIT_OF_WORK, useClass: PrismaUnitOfWork },
     { provide: USER_DIRECTORY, useClass: LogtoUserDirectory },
     { provide: MAILER, useClass: SmtpMailer },

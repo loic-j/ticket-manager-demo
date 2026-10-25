@@ -24,7 +24,7 @@ export class CreateTicketHandler implements ICommandHandler<CreateTicketCommand,
     const { ticket, events } = createTicket(dto, actor);
     // Aggregate and outbox rows commit together; the relay publishes to the broker afterwards.
     await this.unitOfWork.run(async () => {
-      await this.tickets.save(ticket);
+      await this.tickets.insert(ticket);
       await this.outbox.append(toIntegrationEvents(events, actor));
     });
     return ticket.id;

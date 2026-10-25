@@ -66,8 +66,13 @@ every edited file through a hook; do not hand-format.
   ambient transaction of the unit of work.
 - **Databases stay separate**: one PostgreSQL per service (`tickets-db`, `notifications-db`) and
   one for Logto. A service never reads another service's database; it consumes its events.
-- **Consumers are idempotent**: claim the event id in the inbox (`PROCESSED_EVENTS`) inside the
-  same unit of work as the side effect; unknown event types are acked and ignored.
+- **Consumers are idempotent and order-independent**: claim the event id in the inbox
+  (`PROCESSED_EVENTS`) and advance the aggregate version (`TICKET_VERSIONS`) inside the same unit
+  of work as the side effect; a lower or equal version is stale and ignored; unknown event types
+  are acked and ignored. Never rely on delivery order.
+- **Aggregates carry a `version`** (optimistic concurrency: `update` applies only when the stored
+  version matches, handlers retry then raise a conflict mapped to 409) and **integration events
+  carry the full state** with that version, never a delta alone.
 - **Prisma**: after any change to a service's `prisma/schema.prisma`, run the `db-migration` skill
   (generate + migration). The generated client in `src/generated/` is gitignored and produced by
   the `db:generate` Turbo task; never edit or commit it.

@@ -154,15 +154,26 @@ tickets-service never publishes from a request. Command handlers run a **unit of
 (`UNIT_OF_WORK` port, Prisma transaction propagated through `AsyncLocalStorage`) that saves the
 aggregate and appends the integration events to the `outbox_messages` table (`OUTBOX` port).
 `OutboxRelay`, running in the dedicated relay process (`pnpm dev` starts it next to the HTTP
-process; in Docker it is the `tickets-relay` image), polls that table (every
-`OUTBOX_RELAY_INTERVAL_MS`), takes a cluster-wide advisory
-lock so a single instance publishes at a time, reads a batch in `sequence` order (assigned by the
-database at insert, so the events of one command keep their order), publishes it to the topic
-exchange `ticketmanager.events` (routing key = event type) with publisher confirms, and marks the
-rows. Delivery is at-least-once: consumers deduplicate on the envelope `id`. A broker outage only
+process; in Docker it is the `tickets-relay` image, scalable with `--scale`), polls that table
+(every `OUTBOX_RELAY_INTERVAL_MS`), reads a batch in `sequence` order with
+`FOR UPDATE SKIP LOCKED` (so several relays share the work without overlap), publishes it to the
+topic exchange `ticketmanager.events` (routing key = event type) with publisher confirms, and
+marks the rows. Delivery is at-least-once: consumers deduplicate on the envelope `id`. A broker outage only
 delays publication; failed batches keep their rows with `attempts` and `last_error`, unparsable
 rows are quarantined (`attempts` = `OUTBOX_MAX_ATTEMPTS`) and skipped. Every broker wait is bounded
 by `BROKER_TIMEOUT_MS`.
+
+### Ordering: versions, not delivery order
+
+Nothing in the pipeline guarantees delivery order (several relays, concurrent consumers,
+redeliveries). Instead every ticket carries an optimistic-concurrency `version` (1 at creation,
++1 per change; a concurrent update is retried on the fresh state, then answered `409`), and
+every ticket event carries the **full state** with that version (`ticket.created`,
+`ticket.changed` with `changedFields` + `previousStatus`, `ticket.deleted` with the superseding
+version). A consumer that keeps state per ticket records the last version it applied
+(`TICKET_VERSIONS.advance()` in notifications-service, inside the same transaction as its side
+effects) and ignores any event with a lower or equal version. A late or replayed event can
+therefore never overwrite a newer state, and no event has to wait for a missing predecessor.
 
 `src/messaging/infrastructure/testing.ts` provides in-memory doubles; e2e tests run without
 database or broker, `pnpm --filter @ticketmanager/tickets-service test:int` exercises the real
@@ -175,7 +186,8 @@ acks a message only after `HandleTicketEventCommand` committed the notification,
 backoff on failure, and lets the broker dead-letter after 5 deliveries to
 `ticketmanager.events.dlx` (queue `notifications.tickets.dead`). Emails are sent after the commit
 and retried by the email-retry worker process (`EMAIL_MAX_ATTEMPTS`; image
-`notifications-email-retry`), so a Logto or SMTP outage delays them instead of losing them. The handler is
+`notifications-email-retry`, scalable: workers claim distinct rows with `FOR UPDATE SKIP LOCKED`),
+so a Logto or SMTP outage delays them instead of losing them. The handler is
 idempotent through an **inbox** table (`processed_events`, claimed in the same transaction as the
 notification row), so the at-least-once delivery never produces a second notification or email.
 `ticket.created` and `ticket.status-changed` notify the ticket creator; the recipient's email is

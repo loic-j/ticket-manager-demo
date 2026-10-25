@@ -13,12 +13,15 @@ export interface NotificationRepository {
   /** No-op when already read. */
   markRead(id: string, at: Date): Promise<void>;
   /**
-   * Notifications whose email is not `sent`, tried fewer than `maxAttempts` times and not tried
-   * since `notTriedSince` (or never), oldest first.
+   * Reserves notifications whose email is not `sent`, tried fewer than `maxAttempts` times and
+   * not tried since `notTriedSince` (or never), oldest first, by stamping `emailLastTriedAt`.
+   * Concurrent workers never get the same rows (`FOR UPDATE SKIP LOCKED`), and a reserved row
+   * is not offered again before the retry delay elapses.
    */
-  findEmailRetryCandidates(options: {
+  claimEmailRetryCandidates(options: {
     maxAttempts: number;
     notTriedSince: Date;
     limit: number;
+    now: Date;
   }): Promise<Notification[]>;
 }

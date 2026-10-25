@@ -4,15 +4,15 @@ import type {
   UpdateTicketDto,
 } from '@ticketmanager/contracts';
 import {
+  TicketChangedEvent,
   TicketCreatedEvent,
-  TicketStatusChangedEvent,
-  TicketUpdatedEvent,
   type TicketDomainEvent,
 } from './events/ticket-events.js';
 
 /**
  * Domain model of a ticket. It currently matches the API contract from `@ticketmanager/contracts`
  * one to one; split the two here if persistence or business rules ever need to diverge.
+ * `version` grows by one per change and backs optimistic concurrency and event ordering.
  */
 export type Ticket = TicketContract;
 
@@ -33,6 +33,7 @@ export function createTicket(dto: CreateTicketDto, actor: ActorId): TicketTransi
     status: 'open',
     createdBy: actor,
     updatedBy: actor,
+    version: 1,
     createdAt: now,
     updatedAt: now,
   };
@@ -55,11 +56,8 @@ export function updateTicket(
     ...current,
     ...dto,
     updatedBy: actor,
+    version: current.version + 1,
     updatedAt: new Date().toISOString(),
   };
-  const events: TicketDomainEvent[] = [new TicketUpdatedEvent(ticket, changedFields)];
-  if (ticket.status !== current.status) {
-    events.push(new TicketStatusChangedEvent(ticket, current.status, ticket.status));
-  }
-  return { ticket, events };
+  return { ticket, events: [new TicketChangedEvent(ticket, changedFields, current.status)] };
 }

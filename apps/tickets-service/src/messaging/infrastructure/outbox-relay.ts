@@ -10,8 +10,6 @@ import { PrismaService } from '../../database/prisma.service.js';
 import { MESSAGING_CONFIG, type MessagingConfig } from '../messaging.config.js';
 import { EVENT_PUBLISHER, type EventPublisher } from '../ports/event-publisher.js';
 
-/** Cluster-wide lock so only one relay publishes at a time (keeps `sequence` order). */
-const RELAY_LOCK_KEY = 7_401_001;
 const TRANSACTION_TIMEOUT_MS = 30_000;
 
 type OutboxRow = { id: string; sequence: bigint; payload: unknown };
@@ -19,6 +17,9 @@ type OutboxRow = { id: string; sequence: bigint; payload: unknown };
 /**
  * Polls `outbox_messages`, publishes unpublished rows in `sequence` order and marks them.
  * Runs only in the relay process (`main.relay.ts`), never in the HTTP service.
+ * Several relay instances can run at once: `FOR UPDATE SKIP LOCKED` hands each one a distinct
+ * batch. Publication order is therefore best-effort only; consumers rely on the aggregate
+ * `version` carried by every event, not on delivery order.
  * Delivery is at-least-once (a crash between publish and mark republishes the batch), so
  * consumers deduplicate on the envelope id. Rows that cannot be parsed or that failed
  * `maxAttempts` times stay in the table with `last_error` and are skipped.
@@ -64,17 +65,12 @@ export class OutboxRelay implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Publishes one batch of events that occurred at or before `now`.
-   * @returns the number of rows published (0 when empty, on failure, or when another relay
-   * instance holds the lock).
+   * @returns the number of rows published (0 when empty or on failure).
    */
   async drainBatch(now: Date = new Date()): Promise<number> {
     return this.prisma.runInTransaction(
       async () => {
         const tx = this.prisma.db;
-        const [{ locked }] = await tx.$queryRaw<[{ locked: boolean }]>`
-          SELECT pg_try_advisory_xact_lock(${RELAY_LOCK_KEY}) AS locked`;
-        if (!locked) return 0;
-
         const rows = await tx.$queryRaw<OutboxRow[]>`
           SELECT id, sequence, payload FROM outbox_messages
           WHERE published_at IS NULL AND occurred_at <= ${now}

@@ -11,6 +11,7 @@ export function toTicket(row: TicketRow): Ticket {
     priority: row.priority,
     createdBy: row.createdBy,
     updatedBy: row.updatedBy,
+    version: row.version,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -25,6 +26,7 @@ export function toTicketRow(ticket: Ticket): TicketRow {
     priority: ticket.priority,
     createdBy: ticket.createdBy,
     updatedBy: ticket.updatedBy,
+    version: ticket.version,
     createdAt: new Date(ticket.createdAt),
     updatedAt: new Date(ticket.updatedAt),
   };

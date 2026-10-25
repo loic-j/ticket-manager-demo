@@ -13,7 +13,8 @@
   Prisma row mapping lives in `infrastructure/<name>-row.mapper.ts`, shared by both adapters.
 - Events: a handler maps domain events with `toIntegrationEvents()` and appends them to the
   `OUTBOX` inside `UNIT_OF_WORK.run()` together with the aggregate write. Read-modify-write
-  commands read with `findById(id, { forUpdate: true })` inside the unit of work. `src/messaging/`
+  commands are optimistic: read, transition (`version + 1`), `update()` returns `false` on a
+  concurrent change, retry up to 3 times, then `ConcurrencyConflictError` (409). `src/messaging/`
   owns the outbox (`MessagingModule`, write side) and the relay + RabbitMQ publisher
   (`OutboxRelayModule`, imported only by `relay.module.ts` / `main.relay.ts`); handlers never
   touch the broker and the CQRS `EventBus` is not used (reintroduce it only for an in-process

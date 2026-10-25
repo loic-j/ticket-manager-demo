@@ -20,12 +20,14 @@ export class DeleteTicketHandler implements ICommandHandler<DeleteTicketCommand,
     @Inject(OUTBOX) private readonly outbox: Outbox,
   ) {}
 
-  async execute({ ticketId, actor }: DeleteTicketCommand): Promise<void> {
-    const event = new TicketDeletedEvent(ticketId, actor);
-    await this.unitOfWork.run(async () => {
-      if (!(await this.tickets.delete(ticketId))) {
+  execute({ ticketId, actor }: DeleteTicketCommand): Promise<void> {
+    return this.unitOfWork.run(async () => {
+      const deleted = await this.tickets.delete(ticketId);
+      if (!deleted) {
         throw new TicketNotFoundError(ticketId);
       }
+      // The deletion carries the next version so it supersedes every event of the ticket.
+      const event = new TicketDeletedEvent(ticketId, deleted.version + 1, actor);
       await this.outbox.append(toIntegrationEvents([event], actor));
     });
   }

@@ -16,12 +16,22 @@ export class InMemoryTicketRepository implements TicketRepository, TicketReadRep
     return this.tickets.get(id) ?? null;
   }
 
-  async save(ticket: Ticket): Promise<void> {
+  async insert(ticket: Ticket): Promise<void> {
+    if (this.tickets.has(ticket.id)) throw new Error(`duplicate ticket ${ticket.id}`);
     this.tickets.set(ticket.id, ticket);
   }
 
-  async delete(id: string): Promise<boolean> {
-    return this.tickets.delete(id);
+  async update(ticket: Ticket): Promise<boolean> {
+    const current = this.tickets.get(ticket.id);
+    if (!current || current.version !== ticket.version - 1) return false;
+    this.tickets.set(ticket.id, ticket);
+    return true;
+  }
+
+  async delete(id: string): Promise<Ticket | null> {
+    const current = this.tickets.get(id) ?? null;
+    this.tickets.delete(id);
+    return current;
   }
 
   // Read side

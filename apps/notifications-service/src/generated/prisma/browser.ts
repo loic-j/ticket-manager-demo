@@ -27,3 +27,8 @@ export type Notification = Prisma.NotificationModel
  * Inbox: ids of integration events already handled, for at-least-once delivery.
  */
 export type ProcessedEvent = Prisma.ProcessedEventModel
+/**
+ * Model TicketVersion
+ * Last ticket version seen per ticket: events with a lower or equal version are stale and ignored.
+ */
+export type TicketVersion = Prisma.TicketVersionModel

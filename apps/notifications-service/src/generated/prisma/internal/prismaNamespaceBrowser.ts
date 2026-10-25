@@ -52,7 +52,8 @@ export const AnyNull = runtime.AnyNull
 
 export const ModelName = {
   Notification: 'Notification',
-  ProcessedEvent: 'ProcessedEvent'
+  ProcessedEvent: 'ProcessedEvent',
+  TicketVersion: 'TicketVersion'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -97,6 +98,15 @@ export const ProcessedEventScalarFieldEnum = {
 } as const
 
 export type ProcessedEventScalarFieldEnum = (typeof ProcessedEventScalarFieldEnum)[keyof typeof ProcessedEventScalarFieldEnum]
+
+
+export const TicketVersionScalarFieldEnum = {
+  ticketId: 'ticketId',
+  version: 'version',
+  updatedAt: 'updatedAt'
+} as const
+
+export type TicketVersionScalarFieldEnum = (typeof TicketVersionScalarFieldEnum)[keyof typeof TicketVersionScalarFieldEnum]
 
 
 export const SortOrder = {

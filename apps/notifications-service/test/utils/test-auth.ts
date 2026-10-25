@@ -11,6 +11,7 @@ import {
   MAILER,
   NOTIFICATION_READ_REPOSITORY,
   PROCESSED_EVENTS,
+  TICKET_VERSIONS,
   UNIT_OF_WORK,
   USER_DIRECTORY,
 } from '../../src/notifications/application/ports/index.js';
@@ -20,6 +21,7 @@ import {
   ImmediateUnitOfWork,
   InMemoryNotificationRepository,
   InMemoryProcessedEvents,
+  InMemoryTicketVersions,
   StaticUserDirectory,
 } from '../../src/notifications/infrastructure/testing.js';
 
@@ -87,6 +89,8 @@ export class TestAuth {
       .useValue(this.notifications)
       .overrideProvider(PROCESSED_EVENTS)
       .useValue(new InMemoryProcessedEvents())
+      .overrideProvider(TICKET_VERSIONS)
+      .useValue(new InMemoryTicketVersions())
       .overrideProvider(UNIT_OF_WORK)
       .useValue(new ImmediateUnitOfWork())
       .overrideProvider(USER_DIRECTORY)

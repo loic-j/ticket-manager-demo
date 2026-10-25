@@ -21,6 +21,8 @@ export const ticketSchema = z.object({
   createdBy: z.string().min(1),
   /** Logto user id (`sub`) of the last editor. */
   updatedBy: z.string().min(1),
+  /** Optimistic-concurrency version, 1 at creation, +1 per change. Also orders the events. */
+  version: z.number().int().positive(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });

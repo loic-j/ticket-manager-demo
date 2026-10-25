@@ -15,7 +15,7 @@ import { NOTIFICATIONS_CONFIG, type NotificationsConfig } from '../notifications
 /**
  * Periodically re-sends emails that are still `pending` (crash between commit and send) or
  * `failed` (directory or SMTP error), until `emailMaxAttempts`. Runs only in the email-retry
- * process (`main.email-retry.ts`); keep a single replica, two workers could send an email twice.
+ * process (`main.email-retry.ts`). Workers can be scaled: each claims distinct rows.
  */
 @Injectable()
 export class EmailRetryJob implements OnModuleInit, OnModuleDestroy {
@@ -53,10 +53,11 @@ export class EmailRetryJob implements OnModuleInit, OnModuleDestroy {
   /** @returns the number of notifications retried. */
   async run(now = new Date()): Promise<number> {
     try {
-      const candidates = await this.notifications.findEmailRetryCandidates({
+      const candidates = await this.notifications.claimEmailRetryCandidates({
         maxAttempts: this.config.emailMaxAttempts,
         notTriedSince: new Date(now.getTime() - this.config.emailRetryDelayMs),
         limit: 50,
+        now,
       });
       for (const notification of candidates) {
         await this.emails.deliver(notification);

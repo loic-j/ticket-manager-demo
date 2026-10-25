@@ -1,10 +1,11 @@
-import { ticketCreatedV1, ticketDeletedV1, ticketStatusChangedV1 } from '@ticketmanager/events';
+import { ticketChangedV1, ticketCreatedV1, ticketDeletedV1 } from '@ticketmanager/events';
 import { EmailDeliveryService } from '../email-delivery.service.js';
 import {
   CapturingMailer,
   ImmediateUnitOfWork,
   InMemoryNotificationRepository,
   InMemoryProcessedEvents,
+  InMemoryTicketVersions,
   StaticUserDirectory,
 } from '../../infrastructure/testing.js';
 import { HandleTicketEventCommand } from './handle-ticket-event.command.js';
@@ -13,41 +14,49 @@ import { MarkNotificationReadCommand } from './mark-notification-read.command.js
 import { MarkNotificationReadHandler } from './mark-notification-read.handler.js';
 import { notificationFor } from './ticket-event-notifications.js';
 
-const ticketId = '2f6a3c4e-5b1d-4e8a-9c7f-1a2b3c4d5e6f';
-const created = () =>
-  ticketCreatedV1.create({
-    ticketId,
-    title: 'Printer on fire',
-    priority: 'urgent',
-    createdBy: 'u1',
+const ticket = {
+  id: '2f6a3c4e-5b1d-4e8a-9c7f-1a2b3c4d5e6f',
+  title: 'Printer on fire',
+  description: '',
+  status: 'open' as const,
+  priority: 'urgent' as const,
+  createdBy: 'u1',
+  updatedBy: 'u1',
+  version: 1,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+};
+const created = () => ticketCreatedV1.create({ ticket });
+const changed = (version: number, status: typeof ticket.status, previousStatus = ticket.status) =>
+  ticketChangedV1.create({
+    ticket: { ...ticket, version, status },
+    changedFields: ['status'],
+    previousStatus,
   });
 
 function setup(users: StaticUserDirectory) {
   const repo = new InMemoryNotificationRepository();
   const mailer = new CapturingMailer();
-  const emails = new EmailDeliveryService(repo, users, mailer);
   const handler = new HandleTicketEventHandler(
     repo,
     new InMemoryProcessedEvents(),
+    new InMemoryTicketVersions(),
     new ImmediateUnitOfWork(),
-    emails,
+    new EmailDeliveryService(repo, users, mailer),
   );
   return { repo, mailer, handler };
 }
+const knownUser = () => new StaticUserDirectory({ u1: { email: 'u1@example.com', name: 'Una' } });
 
 describe('HandleTicketEventHandler', () => {
-  const knownUser = () => new StaticUserDirectory({ u1: { email: 'u1@example.com', name: 'Una' } });
-
   it('stores a notification for the creator and emails them', async () => {
     const { repo, mailer, handler } = setup(knownUser());
     expect(await handler.execute(new HandleTicketEventCommand(created()))).toBe('created');
-    const [row] = [...repo.rows.values()];
-    expect(row).toMatchObject({
+    expect([...repo.rows.values()][0]).toMatchObject({
       kind: 'ticket_created',
-      ticketId,
+      ticketId: ticket.id,
       email: 'sent',
       emailAttempts: 1,
-      readAt: null,
     });
     expect(mailer.sent).toEqual([
       {
@@ -67,10 +76,28 @@ describe('HandleTicketEventHandler', () => {
     expect(mailer.sent).toHaveLength(1);
   });
 
+  it('ignores stale versions whatever the delivery order', async () => {
+    const { repo, handler } = setup(knownUser());
+    expect(
+      await handler.execute(new HandleTicketEventCommand(changed(3, 'closed', 'resolved'))),
+    ).toBe('created');
+    expect(await handler.execute(new HandleTicketEventCommand(changed(2, 'resolved')))).toBe(
+      'stale',
+    );
+    expect(await handler.execute(new HandleTicketEventCommand(created()))).toBe('stale'); // version 1 after 3
+    expect([...repo.rows.values()].map((n) => n.kind)).toEqual(['ticket_status_changed']);
+  });
+
   it('ignores events that produce no notification', async () => {
     const { repo, handler } = setup(knownUser());
-    const event = ticketDeletedV1.create({ ticketId, deletedBy: 'u1' });
-    expect(await handler.execute(new HandleTicketEventCommand(event))).toBe('ignored');
+    expect(
+      await handler.execute(
+        new HandleTicketEventCommand(
+          ticketDeletedV1.create({ ticketId: ticket.id, version: 2, deletedBy: 'u1' }),
+        ),
+      ),
+    ).toBe('ignored');
+    expect(await handler.execute(new HandleTicketEventCommand(changed(2, 'open')))).toBe('ignored'); // title-only change
     expect(repo.rows.size).toBe(0);
   });
 
@@ -106,27 +133,17 @@ describe('HandleTicketEventHandler', () => {
 
 describe('notificationFor', () => {
   it('describes a status change for the creator', () => {
-    const event = ticketStatusChangedV1.create({
-      ticketId,
-      title: 'Printer',
-      from: 'open',
-      to: 'in_progress',
-      changedBy: 'agent',
-      createdBy: 'u1',
-    });
-    expect(notificationFor(event)).toMatchObject({
+    expect(notificationFor(changed(2, 'in_progress'))).toMatchObject({
       userId: 'u1',
       kind: 'ticket_status_changed',
-      title: 'Ticket in progress: Printer',
+      title: 'Ticket in progress: Printer on fire',
     });
   });
 });
 
 describe('MarkNotificationReadHandler', () => {
   it('marks only the owner notification as read and keeps the email status', async () => {
-    const { repo, handler: ingest } = setup(
-      new StaticUserDirectory({ u1: { email: 'u1@example.com', name: null } }),
-    );
+    const { repo, handler: ingest } = setup(knownUser());
     await ingest.execute(new HandleTicketEventCommand(created()));
     const id = [...repo.rows.keys()][0]!;
     const handler = new MarkNotificationReadHandler(repo);

@@ -1,4 +1,4 @@
-import { ticketCreatedV1, ticketStatusChangedV1, type EventEnvelope } from '@ticketmanager/events';
+import { ticketChangedV1, ticketCreatedV1, type EventEnvelope } from '@ticketmanager/events';
 import type { NewNotification } from '../../domain/notification.js';
 
 /**
@@ -7,23 +7,24 @@ import type { NewNotification } from '../../domain/notification.js';
  */
 export function notificationFor(envelope: EventEnvelope): Omit<NewNotification, 'eventId'> | null {
   if (ticketCreatedV1.is(envelope)) {
-    const { ticketId, title, priority, createdBy } = envelope.payload;
+    const { id, title, priority, createdBy } = envelope.payload.ticket;
     return {
       userId: createdBy,
       kind: 'ticket_created',
       title: `Ticket created: ${title}`,
       body: `Your ticket "${title}" (priority ${priority}) has been created.`,
-      ticketId,
+      ticketId: id,
     };
   }
-  if (ticketStatusChangedV1.is(envelope)) {
-    const { ticketId, title, from, to, createdBy } = envelope.payload;
+  if (ticketChangedV1.is(envelope)) {
+    const { ticket, previousStatus } = envelope.payload;
+    if (ticket.status === previousStatus) return null; // title/priority edits do not notify
     return {
-      userId: createdBy,
+      userId: ticket.createdBy,
       kind: 'ticket_status_changed',
-      title: `Ticket ${to.replace('_', ' ')}: ${title}`,
-      body: `Your ticket "${title}" moved from ${from} to ${to}.`,
-      ticketId,
+      title: `Ticket ${ticket.status.replace('_', ' ')}: ${ticket.title}`,
+      body: `Your ticket "${ticket.title}" moved from ${previousStatus} to ${ticket.status}.`,
+      ticketId: ticket.id,
     };
   }
   return null;

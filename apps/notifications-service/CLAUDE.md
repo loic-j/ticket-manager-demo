@@ -8,8 +8,9 @@ Same rules and layout as `apps/tickets-service/CLAUDE.md` (read it first). Speci
   deliveries to `<exchange>.dlx` → `notifications.tickets.dead`. Unparsable messages are
   dead-lettered at once. Handlers run concurrently (`CONSUMER_PREFETCH`): no ordering guarantee.
   Changing queue arguments requires deleting the queue first (RabbitMQ refuses to redeclare).
-- Idempotency: `PROCESSED_EVENTS.claim(eventId)` runs inside `UNIT_OF_WORK.run()` with the
-  notification insert; a duplicate returns `'duplicate'` and is acked. The email is sent after
+- Idempotency and ordering: `PROCESSED_EVENTS.claim(eventId)` and `TICKET_VERSIONS.advance(ticketId,
+version)` run inside `UNIT_OF_WORK.run()` with the notification insert; a duplicate returns
+  `'duplicate'`, an older version `'stale'`, both are acked. The email is sent after
   the commit by `EmailDeliveryService` (never throws, records `email` sent/failed + attempts) and
   `EmailRetryJob` re-sends `pending`/`failed` rows until `EMAIL_MAX_ATTEMPTS`.
 - Modules: `NotificationsCoreModule` (handlers, ports, adapters) is shared; `NotificationsModule`

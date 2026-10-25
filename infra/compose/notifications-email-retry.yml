@@ -1,4 +1,5 @@
 # Email retry worker of notifications-service: its own image (Dockerfile target "email-retry").
+# Stateless: scale with `--scale notifications-email-retry=N`, workers claim distinct rows.
 # Included by ../docker-compose.yml so it shares the project, network and dependencies.
 services:
   notifications-email-retry:
@@ -22,5 +23,3 @@ services:
       LOGTO_ENDPOINT: http://host.docker.internal:3301
       SMTP_URL: smtp://mailpit:1025
       MAIL_FROM: Ticket Manager <noreply@ticketmanager.local>
-    deploy:
-      replicas: 1 # two workers could send the same email twice

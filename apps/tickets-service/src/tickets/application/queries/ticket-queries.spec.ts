@@ -9,7 +9,7 @@ describe('ticket query handlers', () => {
   it('lists and gets tickets from the read port', async () => {
     const store = new InMemoryTicketRepository();
     const { ticket } = createTicket({ title: 'A', description: '', priority: 'low' }, 'user_a');
-    await store.save(ticket);
+    await store.insert(ticket);
 
     expect(await new ListTicketsHandler(store).execute()).toEqual([ticket]);
     expect(await new GetTicketHandler(store).execute(new GetTicketQuery(ticket.id))).toEqual(

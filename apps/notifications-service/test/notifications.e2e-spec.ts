@@ -31,17 +31,30 @@ describe('Notifications (e2e)', () => {
 
   it('lists only the caller notifications, newest first, and marks them read', async () => {
     const commandBus = app.get(CommandBus);
+    const base = {
+      description: '',
+      status: 'open' as const,
+      priority: 'low' as const,
+      updatedBy: 'x',
+      version: 1,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
     const mine = ticketCreatedV1.create({
-      ticketId: '2f6a3c4e-5b1d-4e8a-9c7f-1a2b3c4d5e6f',
-      title: 'Mine',
-      priority: 'low',
-      createdBy: 'user_test',
+      ticket: {
+        ...base,
+        id: '2f6a3c4e-5b1d-4e8a-9c7f-1a2b3c4d5e6f',
+        title: 'Mine',
+        createdBy: 'user_test',
+      },
     });
     const theirs = ticketCreatedV1.create({
-      ticketId: '3f6a3c4e-5b1d-4e8a-9c7f-1a2b3c4d5e6f',
-      title: 'Theirs',
-      priority: 'low',
-      createdBy: 'user_other',
+      ticket: {
+        ...base,
+        id: '3f6a3c4e-5b1d-4e8a-9c7f-1a2b3c4d5e6f',
+        title: 'Theirs',
+        createdBy: 'user_other',
+      },
     });
     await commandBus.execute(new HandleTicketEventCommand(theirs));
     await commandBus.execute(new HandleTicketEventCommand(mine));

@@ -32,6 +32,9 @@ caller names files or a context folder, review those instead. Read `CLAUDE.md`,
    2c. **Outbox**: handlers append integration events to `OUTBOX` inside `UNIT_OF_WORK.run()` with
    the aggregate write; nothing but `OutboxRelay` injects `EVENT_PUBLISHER`; Prisma adapters use
    `this.prisma.db`; `domain/` never imports `@ticketmanager/events`.
+   2e. **Versions**: aggregate writes go through `insert` / `update` (optimistic, `version + 1`);
+   integration events carry the full aggregate state and its version; consumers call the
+   version guard inside the unit of work and never assume delivery order.
    2d. **Workers**: timers/pollers (`OutboxRelay`, `EmailRetryJob`) are provided only by modules
    imported from a headless entry point (`main.relay.ts`, `main.email-retry.ts`); the HTTP
    `AppModule` must not import them, and no env variable may toggle them.

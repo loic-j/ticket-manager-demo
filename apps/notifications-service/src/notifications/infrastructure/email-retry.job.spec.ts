@@ -44,7 +44,7 @@ describe('EmailRetryJob', () => {
     expect(repo.rows.get(pending.id)).toMatchObject({ email: 'sent', emailAttempts: 1 });
     expect(repo.rows.get(failed.id)).toMatchObject({ email: 'sent', emailAttempts: 2 });
     expect(repo.rows.get(exhausted.id)).toMatchObject({ email: 'failed', emailAttempts: 2 });
-    expect(repo.rows.get(fresh.id)).toMatchObject({ email: 'pending' });
+    expect(repo.rows.get(fresh.id)).toMatchObject({ email: 'pending', emailLastTriedAt: null });
     expect(await job.run()).toBe(0);
   });
 });

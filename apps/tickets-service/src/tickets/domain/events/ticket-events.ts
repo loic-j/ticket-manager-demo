@@ -8,28 +8,21 @@ export class TicketCreatedEvent {
   constructor(readonly ticket: Ticket) {}
 }
 
-export class TicketUpdatedEvent {
+export class TicketChangedEvent {
   constructor(
     readonly ticket: Ticket,
     /** Keys of the fields that changed, e.g. `['title', 'priority']`. */
     readonly changedFields: readonly string[],
-  ) {}
-}
-
-export class TicketStatusChangedEvent {
-  constructor(
-    readonly ticket: Ticket,
-    readonly from: Ticket['status'],
-    readonly to: Ticket['status'],
+    readonly previousStatus: Ticket['status'],
   ) {}
 }
 
 export class TicketDeletedEvent {
   constructor(
     readonly ticketId: string,
+    readonly version: number,
     readonly deletedBy: string,
   ) {}
 }
 
-export type TicketDomainEvent =
-  TicketCreatedEvent | TicketUpdatedEvent | TicketStatusChangedEvent | TicketDeletedEvent;
+export type TicketDomainEvent = TicketCreatedEvent | TicketChangedEvent | TicketDeletedEvent;

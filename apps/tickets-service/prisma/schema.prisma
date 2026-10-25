@@ -37,6 +37,8 @@ model Ticket {
   /// Logto user ids (`sub`); users live in Logto, so no foreign key.
   createdBy   String         @map("created_by")
   updatedBy   String         @map("updated_by")
+  /// Optimistic-concurrency version; also orders the ticket's integration events.
+  version     Int            @default(1)
   createdAt   DateTime       @default(now()) @map("created_at")
   updatedAt   DateTime       @updatedAt @map("updated_at")
 

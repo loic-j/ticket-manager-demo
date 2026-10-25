@@ -10,4 +10,5 @@
  */
 export type * from './models/Notification.js'
 export type * from './models/ProcessedEvent.js'
+export type * from './models/TicketVersion.js'
 export type * from './commonInputTypes.js'

@@ -29,16 +29,18 @@ describe('PrismaTicketRepository (integration)', () => {
     );
     created.push(ticket.id);
 
-    await repository.save(ticket);
+    await repository.insert(ticket);
     expect(await repository.findById(ticket.id)).toEqual(ticket);
     expect(await readRepository.getById(ticket.id)).toEqual(ticket);
     expect((await readRepository.list()).map((t) => t.id)).toContain(ticket.id);
 
-    await repository.save({ ...ticket, status: 'resolved' });
+    const v2 = { ...ticket, status: 'resolved' as const, version: 2 };
+    expect(await repository.update(v2)).toBe(true);
+    expect(await repository.update(v2)).toBe(false); // stale: stored version is already 2
     expect((await repository.findById(ticket.id))?.status).toBe('resolved');
 
-    expect(await repository.delete(ticket.id)).toBe(true);
-    expect(await repository.delete(ticket.id)).toBe(false);
+    expect(await repository.delete(ticket.id)).toMatchObject({ id: ticket.id, version: 2 });
+    expect(await repository.delete(ticket.id)).toBeNull();
     expect(await repository.findById(ticket.id)).toBeNull();
   });
 });

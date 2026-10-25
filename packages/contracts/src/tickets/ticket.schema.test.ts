@@ -23,6 +23,7 @@ describe('ticketSchema', () => {
       priority: 'low',
       createdBy: 'user_a',
       updatedBy: 'user_a',
+      version: 1,
       createdAt: now,
       updatedAt: now,
     });

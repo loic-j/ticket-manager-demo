@@ -2,6 +2,7 @@ import type { Notification as NotificationView } from '@ticketmanager/contracts'
 import type { Mail, Mailer } from '../application/ports/mailer.js';
 import type { NotificationReadRepository } from '../application/ports/notification-read.repository.js';
 import type { ProcessedEvents } from '../application/ports/processed-events.js';
+import type { TicketVersions } from '../application/ports/ticket-versions.js';
 import type { UnitOfWork } from '../application/ports/unit-of-work.js';
 import type { UserDirectory, UserProfile } from '../application/ports/user-directory.js';
 import type { NotificationRepository } from '../domain/notification.repository.js';
@@ -34,13 +35,14 @@ export class InMemoryNotificationRepository
     if (row && !row.readAt) this.rows.set(id, { ...row, readAt: at.toISOString() });
   }
 
-  async findEmailRetryCandidates(options: {
+  async claimEmailRetryCandidates(options: {
     maxAttempts: number;
     notTriedSince: Date;
     limit: number;
+    now: Date;
   }): Promise<Notification[]> {
     const since = options.notTriedSince.toISOString();
-    return [...this.rows.values()]
+    const claimed = [...this.rows.values()]
       .filter(
         (n) =>
           n.email !== 'sent' &&
@@ -49,7 +51,10 @@ export class InMemoryNotificationRepository
           n.createdAt < since,
       )
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-      .slice(0, options.limit);
+      .slice(0, options.limit)
+      .map((n) => ({ ...n, emailLastTriedAt: options.now.toISOString() }));
+    for (const n of claimed) this.rows.set(n.id, n);
+    return claimed;
   }
 
   async listForUser(userId: string): Promise<NotificationView[]> {
@@ -66,6 +71,16 @@ export class InMemoryProcessedEvents implements ProcessedEvents {
   async claim(eventId: string): Promise<boolean> {
     if (this.ids.has(eventId)) return false;
     this.ids.add(eventId);
+    return true;
+  }
+}
+
+export class InMemoryTicketVersions implements TicketVersions {
+  readonly versions = new Map<string, number>();
+
+  async advance(ticketId: string, version: number): Promise<boolean> {
+    if ((this.versions.get(ticketId) ?? 0) >= version) return false;
+    this.versions.set(ticketId, version);
     return true;
   }
 }

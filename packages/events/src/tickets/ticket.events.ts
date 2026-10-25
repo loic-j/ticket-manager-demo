@@ -1,39 +1,22 @@
-import { ticketPrioritySchema, ticketStatusSchema } from '@ticketmanager/contracts';
+import { ticketSchema } from '@ticketmanager/contracts';
 import { z } from 'zod';
 import { defineEvent } from '../envelope.js';
 
-export const ticketCreatedV1 = defineEvent(
-  'ticket.created',
-  1,
-  z.object({
-    ticketId: z.uuid(),
-    title: z.string().min(1),
-    priority: ticketPrioritySchema,
-    createdBy: z.string().min(1),
-  }),
-);
+/**
+ * Ticket events carry the full state after the transition plus its `version`, so consumers
+ * never depend on delivery order: apply an event only when `version` is greater than the last
+ * one seen for that ticket, otherwise acknowledge and ignore it.
+ */
+export const ticketCreatedV1 = defineEvent('ticket.created', 1, z.object({ ticket: ticketSchema }));
 
-export const ticketUpdatedV1 = defineEvent(
-  'ticket.updated',
+export const ticketChangedV1 = defineEvent(
+  'ticket.changed',
   1,
   z.object({
-    ticketId: z.uuid(),
+    ticket: ticketSchema,
+    /** Fields that differ from the previous version, e.g. `['status', 'title']`. */
     changedFields: z.array(z.string().min(1)).min(1),
-    updatedBy: z.string().min(1),
-  }),
-);
-
-export const ticketStatusChangedV1 = defineEvent(
-  'ticket.status-changed',
-  1,
-  z.object({
-    ticketId: z.uuid(),
-    title: z.string().min(1),
-    from: ticketStatusSchema,
-    to: ticketStatusSchema,
-    changedBy: z.string().min(1),
-    /** Creator of the ticket, the default recipient of notifications. */
-    createdBy: z.string().min(1),
+    previousStatus: ticketSchema.shape.status,
   }),
 );
 
@@ -42,14 +25,18 @@ export const ticketDeletedV1 = defineEvent(
   1,
   z.object({
     ticketId: z.uuid(),
+    /** Version of the ticket when it was deleted; a deletion supersedes every lower version. */
+    version: z.number().int().positive(),
     deletedBy: z.string().min(1),
   }),
 );
 
 /** Every ticket event, for consumers that bind `ticket.#`. */
-export const TICKET_EVENTS = [
-  ticketCreatedV1,
-  ticketUpdatedV1,
-  ticketStatusChangedV1,
-  ticketDeletedV1,
-] as const;
+export const TICKET_EVENTS = [ticketCreatedV1, ticketChangedV1, ticketDeletedV1] as const;
+
+/** Version carried by any ticket event, for consumer-side staleness checks. */
+export function ticketEventVersion(
+  payload: { ticket: { version: number } } | { version: number },
+): number {
+  return 'ticket' in payload ? payload.ticket.version : payload.version;
+}

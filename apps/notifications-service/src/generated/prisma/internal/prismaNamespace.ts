@@ -398,7 +398,8 @@ type FieldRefInputType<Model, FieldType> = Model extends never ? never : FieldRe
 
 export const ModelName = {
   Notification: 'Notification',
-  ProcessedEvent: 'ProcessedEvent'
+  ProcessedEvent: 'ProcessedEvent',
+  TicketVersion: 'TicketVersion'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -414,7 +415,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "notification" | "processedEvent"
+    modelProps: "notification" | "processedEvent" | "ticketVersion"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -566,6 +567,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    TicketVersion: {
+      payload: Prisma.$TicketVersionPayload<ExtArgs>
+      fields: Prisma.TicketVersionFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.TicketVersionFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TicketVersionPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.TicketVersionFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TicketVersionPayload>
+        }
+        findFirst: {
+          args: Prisma.TicketVersionFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TicketVersionPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.TicketVersionFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TicketVersionPayload>
+        }
+        findMany: {
+          args: Prisma.TicketVersionFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TicketVersionPayload>[]
+        }
+        create: {
+          args: Prisma.TicketVersionCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TicketVersionPayload>
+        }
+        createMany: {
+          args: Prisma.TicketVersionCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.TicketVersionCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TicketVersionPayload>[]
+        }
+        delete: {
+          args: Prisma.TicketVersionDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TicketVersionPayload>
+        }
+        update: {
+          args: Prisma.TicketVersionUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TicketVersionPayload>
+        }
+        deleteMany: {
+          args: Prisma.TicketVersionDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.TicketVersionUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.TicketVersionUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TicketVersionPayload>[]
+        }
+        upsert: {
+          args: Prisma.TicketVersionUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TicketVersionPayload>
+        }
+        aggregate: {
+          args: Prisma.TicketVersionAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateTicketVersion>
+        }
+        groupBy: {
+          args: Prisma.TicketVersionGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.TicketVersionGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.TicketVersionCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.TicketVersionCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -631,6 +706,15 @@ export const ProcessedEventScalarFieldEnum = {
 } as const
 
 export type ProcessedEventScalarFieldEnum = (typeof ProcessedEventScalarFieldEnum)[keyof typeof ProcessedEventScalarFieldEnum]
+
+
+export const TicketVersionScalarFieldEnum = {
+  ticketId: 'ticketId',
+  version: 'version',
+  updatedAt: 'updatedAt'
+} as const
+
+export type TicketVersionScalarFieldEnum = (typeof TicketVersionScalarFieldEnum)[keyof typeof TicketVersionScalarFieldEnum]
 
 
 export const SortOrder = {
@@ -899,6 +983,7 @@ export type PrismaClientOptions = PrismaClientOptionsWithAccelerateUrl | PrismaC
 export type GlobalOmitConfig = {
   notification?: Prisma.NotificationOmit
   processedEvent?: Prisma.ProcessedEventOmit
+  ticketVersion?: Prisma.TicketVersionOmit
 }
 
 /* Types for Logging */

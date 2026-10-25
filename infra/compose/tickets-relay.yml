@@ -1,4 +1,5 @@
-# Outbox relay of tickets-service: its own image (Dockerfile target "relay"), one replica.
+# Outbox relay of tickets-service: its own image (Dockerfile target "relay"). Stateless: scale with
+# `--scale tickets-relay=N`, instances share the work through FOR UPDATE SKIP LOCKED.
 # Included by ../docker-compose.yml so it shares the project, network and dependencies.
 services:
   tickets-relay:
@@ -16,5 +17,3 @@ services:
       DATABASE_URL: postgresql://tickets:tickets@tickets-db:5432/tickets
       RABBITMQ_URL: amqp://ticketmanager:ticketmanager@rabbitmq:5672
       EVENTS_EXCHANGE: ticketmanager.events
-    deploy:
-      replicas: 1 # the relay serialises publishing with an advisory lock; more replicas just wait

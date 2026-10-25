@@ -56,3 +56,12 @@ model ProcessedEvent {
 
   @@map("processed_events")
 }
+
+/// Last ticket version seen per ticket: events with a lower or equal version are stale and ignored.
+model TicketVersion {
+  ticketId  String   @id @map("ticket_id") @db.Uuid
+  version   Int
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("ticket_versions")
+}

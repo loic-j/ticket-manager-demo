@@ -38,6 +38,7 @@ describe('Tickets (e2e)', () => {
     expect(ticket.description).toBe('');
     expect(ticket.createdBy).toBe('user_test');
     expect(ticket.updatedBy).toBe('user_test');
+    expect(ticket.version).toBe(1);
     expect(auth.outbox.events.at(-1)?.envelope).toMatchObject({
       type: 'ticket.created',
       payload: { ticketId: ticket.id },

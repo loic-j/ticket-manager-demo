@@ -7,6 +7,7 @@ import {
   PrismaNotificationRepository,
 } from '../src/notifications/infrastructure/prisma-notification.repository.js';
 import { PrismaProcessedEvents } from '../src/notifications/infrastructure/prisma-processed-events.js';
+import { PrismaTicketVersions } from '../src/notifications/infrastructure/prisma-ticket-versions.js';
 import { PrismaUnitOfWork } from '../src/notifications/infrastructure/prisma-unit-of-work.js';
 
 /** Needs notifications-db (`pnpm infra:up`). */
@@ -14,6 +15,7 @@ describe('Prisma inbox and notifications (integration)', () => {
   let prisma: PrismaService;
   const eventIds: string[] = [];
   const notificationIds: string[] = [];
+  const ticketIds: string[] = [];
 
   beforeAll(() => {
     prisma = new PrismaService(new ConfigService());
@@ -22,6 +24,7 @@ describe('Prisma inbox and notifications (integration)', () => {
   afterAll(async () => {
     await prisma.db.notification.deleteMany({ where: { id: { in: notificationIds } } });
     await prisma.db.processedEvent.deleteMany({ where: { eventId: { in: eventIds } } });
+    await prisma.db.ticketVersion.deleteMany({ where: { ticketId: { in: ticketIds } } });
     await prisma.onModuleDestroy();
   });
 
@@ -70,5 +73,49 @@ describe('Prisma inbox and notifications (integration)', () => {
     const [view] = await read.listForUser(userId);
     expect(view).toMatchObject({ id: notification.id, title: 'Integration', email: 'failed' });
     expect(view).not.toHaveProperty('userId');
+  });
+
+  it('advances ticket versions monotonically', async () => {
+    const versions = new PrismaTicketVersions(prisma);
+    const ticketId = crypto.randomUUID();
+    ticketIds.push(ticketId);
+    expect(await versions.advance(ticketId, 3)).toBe(true);
+    expect(await versions.advance(ticketId, 2)).toBe(false);
+    expect(await versions.advance(ticketId, 3)).toBe(false);
+    expect(await versions.advance(ticketId, 4)).toBe(true);
+  });
+
+  it('claims retry candidates once across concurrent workers', async () => {
+    const repo = new PrismaNotificationRepository(prisma);
+    const userId = `user_${crypto.randomUUID()}`;
+    const old = new Date(Date.now() - 10 * 60 * 1000);
+    for (let i = 0; i < 3; i++) {
+      const n = createNotification({
+        userId,
+        kind: 'ticket_created',
+        title: `Retry ${i}`,
+        body: 'b',
+        ticketId: crypto.randomUUID(),
+        eventId: crypto.randomUUID(),
+      });
+      notificationIds.push(n.id);
+      await repo.insert({ ...n, createdAt: old.toISOString(), email: 'failed', emailAttempts: 1 });
+    }
+    const options = {
+      maxAttempts: 5,
+      notTriedSince: new Date(Date.now() - 60_000),
+      limit: 10,
+      now: new Date(),
+    };
+    const [a, b] = await Promise.all([
+      repo.claimEmailRetryCandidates(options),
+      repo.claimEmailRetryCandidates(options),
+    ]);
+    const mine = [...a, ...b].filter((n) => n.userId === userId);
+    expect(mine).toHaveLength(3);
+    expect(new Set(mine.map((n) => n.id)).size).toBe(3); // no row claimed twice
+    expect(
+      (await repo.claimEmailRetryCandidates(options)).filter((n) => n.userId === userId),
+    ).toHaveLength(0);
   });
 });

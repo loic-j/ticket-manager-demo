@@ -1,29 +1,19 @@
 import type { Notification } from '@ticketmanager/contracts';
 import Link from 'next/link';
-import { ApiError, notificationsApi } from '@/lib/api';
-import { markNotificationReadAction } from '@/lib/notification-actions';
-import { SubmitButton } from './submit-button';
+import { notificationsApi } from '@/lib/api';
+import { ApiErrorMessage } from './api-error-message';
+import { MarkReadForm } from './mark-read-form';
+
+type Loaded = { ok: true; notifications: Notification[] } | { ok: false; error: unknown };
 
 export async function NotificationList() {
-  let notifications: Notification[];
-  try {
-    notifications = await notificationsApi.list();
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 401) {
-      return (
-        <p className="text-red-600">
-          The notifications API rejected the access token (401). Sign out and in again so a token
-          for the notifications resource is issued.
-        </p>
-      );
-    }
-    return (
-      <p className="text-red-600">
-        Could not reach the notifications API:{' '}
-        {error instanceof Error ? error.message : String(error)}
-      </p>
-    );
-  }
+  // Settle the call before rendering: the lint rules forbid JSX inside try/catch.
+  const loaded: Loaded = await notificationsApi.list().then(
+    (notifications) => ({ ok: true as const, notifications }),
+    (error: unknown) => ({ ok: false as const, error }),
+  );
+  if (!loaded.ok) return <ApiErrorMessage error={loaded.error} resource="notifications" />;
+  const { notifications } = loaded;
 
   if (notifications.length === 0) {
     return <p className="text-zinc-500">No notifications yet.</p>;
@@ -51,13 +41,7 @@ export async function NotificationList() {
                 </Link>
               </p>
             </div>
-            {!n.readAt && (
-              <form action={markNotificationReadAction.bind(null, n.id)}>
-                <SubmitButton pendingLabel="…" className="text-sm underline">
-                  Mark as read
-                </SubmitButton>
-              </form>
-            )}
+            {!n.readAt && <MarkReadForm id={n.id} />}
           </div>
         </li>
       ))}

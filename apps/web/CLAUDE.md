@@ -6,24 +6,44 @@
 - Cache Components are on: anything reading cookies, env or the session must call
   `await connection()` first and sit inside a `<Suspense>` boundary (see `src/app/page.tsx`).
 - Auth: `@logto/next` server actions only. `getLogtoConfig()` (`src/lib/logto.ts`) is lazy so
-  `next build` works without credentials. Access tokens are read with `getAccessTokenRSC` in
-  Server Components and `getAccessToken` in Server Actions / Route Handlers (`src/lib/api.ts`
-  picks the right one via the `CallContext` argument). Never call the API from the browser.
-- Forms post to Server Actions in `src/lib/*-actions.ts`; validate with the shared Zod schema
-  before calling the API; `revalidatePath('/')` after mutations; `redirect()` must stay outside
-  `try/catch`.
-- Styling: Tailwind utility classes, light/dark via `dark:` variants, no CSS modules.
+  `next build` works without credentials; `cookieSecure` follows `BASE_URL` (`https://`), not
+  `NODE_ENV`. Access tokens are read with `getAccessTokenRSC` in Server Components and
+  `getAccessToken` in Server Actions / Route Handlers (`src/lib/api.ts` picks the right one via
+  the `CallContext` argument). `getAccessTokenRSC` cannot persist a refreshed token (the SDK reads
+  the session with `ignoreCookieChange: true` in RSC, cookies are read-only there), so tokens are
+  only persisted by Server Actions / Route Handlers. `bearer()` is memoised per request with React
+  `cache()`: one render obtains each resource token once, however many calls it makes. Never call
+  the API from the browser.
+- Forms are Client Components using `useActionState` with a Server Action from
+  `src/lib/*-actions.ts` of signature `(previousState, formData) => Promise<ActionState>`
+  (`src/lib/action-state.ts`: `{ error?, fieldErrors?, values? }`). The action validates with the
+  shared Zod schema (`safeParse`, field errors mapped with `fieldErrorsOf`), wraps only the API
+  call in `try/catch` and maps failures with `failedActionState` (`src/lib/action-errors.ts`:
+  401 → session expired, 404 → `notFound()`, 409 → modified by someone else, else generic; the raw
+  error is logged server-side only). `revalidatePath()` / `redirect()` stay outside the `try`.
+  Forms re-render with `state.values` after an error and render `SubmitButton` (`'use client'`,
+  `useFormStatus`) for the pending state. The edit form sends the ticket `version` as a hidden
+  `expectedVersion` input so a concurrent edit is answered 409 instead of overwritten.
+- `src/app/error.tsx` (`retry` prop) and `src/app/not-found.tsx` are the safety net for whatever
+  the pages do not handle themselves; `unstable_rethrow(error)` is the first statement of any
+  `catch` that could swallow a Next.js control-flow error (see `src/app/callback/route.ts`).
+- Styling: Tailwind utility classes, light/dark via `dark:` variants, no CSS modules. Tailwind is
+  wired through `@tailwindcss/turbopack` in `next.config.ts` (`turbopack.rules['*.css']`); there
+  is no PostCSS config, do not add one.
 - Per-request data lives in nested async Server Components, each inside its own `<Suspense>`
-  and calling `await connection()` itself (a parent's call does not cover siblings). Pending
-  states: `SubmitButton` (`'use client'`, `useFormStatus`) rendered inside the `<form>`.
+  and calling `await connection()` itself (a parent's call does not cover siblings).
 - `src/lib/api.ts` holds one client per service (`ticketsApi`, `notificationsApi`,
   `directoryApi`); each service has its own Logto resource, all listed in
-  `getLogtoConfig().resources` (adding one forces users to sign in again).
+  `getLogtoConfig().resources` (adding one forces users to sign in again). Service URLs are read
+  at request time by `getServiceUrls()`, never at module scope. A failed read is rendered by
+  `ApiErrorMessage` (`src/components/api-error-message.tsx`): user-facing wording, raw error in
+  the server log only, never `error.message`.
 - The directory is an optional dependency: `directoryApi.getUsers()` is called once per list with
-  every id, and a failure falls back to the raw id (`userLabel` in `src/lib/users.ts`). Never let a
+  every id, and a failure is logged then falls back to the raw id (`userLabel` in
+  `src/lib/users.ts`; `claimsLabel` labels the signed-in user from the ID token). Never let a
   directory outage break a page.
 - Env (server-only, runtime-read, no `NEXT_PUBLIC_*`): `TICKETS_API_URL`, `NOTIFICATIONS_API_URL`,
   `DIRECTORY_API_URL`, `BASE_URL`, `LOGTO_ENDPOINT`,
   `LOGTO_APP_ID`, `LOGTO_APP_SECRET`, `LOGTO_COOKIE_SECRET` in `.env.local` (gitignored).
 - Lint: ESLint flat config with `eslint-config-next`; the React hooks rule forbids JSX inside
-  `try/catch` (use `.catch()` on the promise instead).
+  `try/catch` (settle the promise with `.then(ok, fail)` / `.catch()` and branch on the result).

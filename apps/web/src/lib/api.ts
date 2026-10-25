@@ -9,15 +9,10 @@ import {
   type DirectoryUsersResponse,
   type Notification,
   type Ticket,
-  type UpdateTicketDto,
+  type UpdateTicketBody,
 } from '@ticketmanager/contracts';
+import { cache } from 'react';
 import { getLogtoConfig } from './logto';
-
-// Server-only: the browser never calls the services, so plain (non NEXT_PUBLIC_) variables are
-// used and can be set at runtime, e.g. in Docker.
-const TICKETS_API_URL = process.env.TICKETS_API_URL ?? 'http://localhost:3001';
-const NOTIFICATIONS_API_URL = process.env.NOTIFICATIONS_API_URL ?? 'http://localhost:3002';
-const DIRECTORY_API_URL = process.env.DIRECTORY_API_URL ?? 'http://localhost:3003';
 
 export class ApiError extends Error {
   constructor(
@@ -30,32 +25,50 @@ export class ApiError extends Error {
 
 /**
  * Where the call happens decides how the access token is read:
- * - `rsc`: React Server Component, read-only cookies (`getAccessTokenRSC`).
- * - `action`: Server Action or Route Handler, a refreshed token can be persisted (`getAccessToken`).
+ * - `rsc`: React Server Component, read-only cookies (`getAccessTokenRSC`): a token refreshed
+ *   here cannot be persisted, the SDK reads with `ignoreCookieChange: true`.
+ * - `action`: Server Action or Route Handler, a refreshed token is written back to the session
+ *   cookie (`getAccessToken`).
  */
 type CallContext = 'rsc' | 'action';
 
+type ServiceName = 'tickets' | 'notifications' | 'directory';
+
 interface Service {
-  baseUrl: string;
+  name: ServiceName;
   /** Logto API resource the access token must be issued for. */
   resource: string;
 }
 
-const tickets: Service = { baseUrl: TICKETS_API_URL, resource: TICKETS_API_RESOURCE };
-const notifications: Service = {
-  baseUrl: NOTIFICATIONS_API_URL,
-  resource: NOTIFICATIONS_API_RESOURCE,
-};
-const directory: Service = { baseUrl: DIRECTORY_API_URL, resource: DIRECTORY_API_RESOURCE };
+const tickets: Service = { name: 'tickets', resource: TICKETS_API_RESOURCE };
+const notifications: Service = { name: 'notifications', resource: NOTIFICATIONS_API_RESOURCE };
+const directory: Service = { name: 'directory', resource: DIRECTORY_API_RESOURCE };
 
-async function bearer(service: Service, context: CallContext): Promise<string> {
+/**
+ * Base URL of each service. Server-only, so plain (non NEXT_PUBLIC_) variables are used and read
+ * at request time, not at module load: the same build runs on the host and in Docker.
+ */
+function getServiceUrls(): Record<ServiceName, string> {
+  return {
+    tickets: process.env.TICKETS_API_URL ?? 'http://localhost:3001',
+    notifications: process.env.NOTIFICATIONS_API_URL ?? 'http://localhost:3002',
+    directory: process.env.DIRECTORY_API_URL ?? 'http://localhost:3003',
+  };
+}
+
+/**
+ * Authorization header for one service. Memoised per request with React `cache()`: a render
+ * that calls the same service several times (list + badge, batched directory lookups) obtains
+ * the token once. The `Service` objects above are module constants, so they are stable cache keys.
+ */
+const bearer = cache(async (service: Service, context: CallContext): Promise<string> => {
   const config = getLogtoConfig();
   const token =
     context === 'rsc'
       ? await getAccessTokenRSC(config, service.resource)
       : await getAccessToken(config, service.resource);
   return `Bearer ${token}`;
-}
+});
 
 async function api<T>(
   service: Service,
@@ -63,7 +76,7 @@ async function api<T>(
   context: CallContext,
   init?: RequestInit,
 ): Promise<T> {
-  const res = await fetch(`${service.baseUrl}${path}`, {
+  const res = await fetch(`${getServiceUrls()[service.name]}${path}`, {
     ...init,
     headers: {
       'content-type': 'application/json',
@@ -85,12 +98,17 @@ export const ticketsApi = {
   /** Server Actions only. */
   create: (input: CreateTicketInput) =>
     api<Ticket>(tickets, '/tickets', 'action', { method: 'POST', body: JSON.stringify(input) }),
-  /** Server Actions only. */
-  update: (id: string, input: UpdateTicketDto) =>
+  /**
+   * Server Actions only. `body.expectedVersion` makes the API answer 409 when the ticket changed
+   * since the form was loaded.
+   */
+  update: (id: string, body: UpdateTicketBody) =>
     api<Ticket>(tickets, `/tickets/${id}`, 'action', {
       method: 'PATCH',
-      body: JSON.stringify(input),
+      body: JSON.stringify(body),
     }),
+  /** Server Actions only. */
+  remove: (id: string) => api<void>(tickets, `/tickets/${id}`, 'action', { method: 'DELETE' }),
 };
 
 export const notificationsApi = {

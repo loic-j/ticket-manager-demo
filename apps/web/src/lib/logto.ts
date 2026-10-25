@@ -29,7 +29,9 @@ export function getLogtoConfig(): LogtoNextConfig {
     appSecret: env.LOGTO_APP_SECRET,
     baseUrl: env.BASE_URL,
     cookieSecret: env.LOGTO_COOKIE_SECRET,
-    cookieSecure: process.env.NODE_ENV === 'production',
+    // Secure cookies follow the public URL, not NODE_ENV: a production build served over plain
+    // HTTP (local Docker stack) must still be able to set its session cookie.
+    cookieSecure: env.BASE_URL.startsWith('https://'),
     scopes: [UserScope.Email, UserScope.Profile],
     // Access tokens for each backend service (every resource must exist in the Logto console;
     // adding one here requires existing sessions to sign out and in again).

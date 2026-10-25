@@ -1,5 +1,5 @@
 import { handleSignIn } from '@logto/next/server-actions';
-import { redirect } from 'next/navigation';
+import { redirect, unstable_rethrow } from 'next/navigation';
 import { connection, type NextRequest } from 'next/server';
 import { getLogtoConfig } from '@/lib/logto';
 
@@ -12,6 +12,8 @@ export async function GET(request: NextRequest) {
   try {
     await handleSignIn(getLogtoConfig(), request.nextUrl.searchParams);
   } catch (error) {
+    // Let Next.js control-flow errors (redirect, notFound) through before treating a failure.
+    unstable_rethrow(error);
     console.error('Logto sign-in callback failed', error);
     signedIn = false;
   }

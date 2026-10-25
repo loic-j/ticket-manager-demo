@@ -1,4 +1,5 @@
-import { ticketChangedV1, ticketCreatedV1 } from '@ticketmanager/events';
+import { ticketChangedV1, ticketCreatedV1, ticketDeletedV1 } from '@ticketmanager/events';
+import { TicketDeletedEvent } from '../../domain/events/ticket-events.js';
 import { createTicket, updateTicket } from '../../domain/ticket.js';
 import { toIntegrationEvents } from './ticket-integration-events.js';
 
@@ -21,5 +22,14 @@ describe('toIntegrationEvents', () => {
       ticket: { id: ticket.id, status: 'closed', version: 2, updatedBy: 'u2' },
       changes: { status: { from: 'open', to: 'closed' } },
     });
+  });
+
+  it('maps a deletion to ticket.deleted with the superseding version and the actor', () => {
+    const { ticket } = createTicket({ title: 'A', description: '', priority: 'low' }, 'u1');
+    const [out] = toIntegrationEvents([new TicketDeletedEvent(ticket.id, 2, 'u3')], 'u3');
+    expect(out).toMatchObject({ aggregateType: 'ticket', aggregateId: ticket.id });
+    expect(ticketDeletedV1.is(out!.envelope)).toBe(true);
+    expect(out!.envelope.payload).toEqual({ ticketId: ticket.id, version: 2, deletedBy: 'u3' });
+    expect(out!.envelope.actor).toBe('u3');
   });
 });

@@ -2,7 +2,7 @@ import { ImmediateUnitOfWork, InMemoryOutbox } from '../../../messaging/infrastr
 import { ConcurrencyConflictError } from '../../domain/concurrency-conflict.error.js';
 import { TicketNotFoundError } from '../../domain/ticket-not-found.error.js';
 import type { TicketRepository } from '../../domain/ticket.repository.js';
-import { InMemoryTicketRepository } from '../../infrastructure/in-memory-ticket.repository.js';
+import { InMemoryTicketRepository } from '../../infrastructure/testing.js';
 import { CreateTicketCommand } from './create-ticket.command.js';
 import { CreateTicketHandler } from './create-ticket.handler.js';
 import { DeleteTicketCommand } from './delete-ticket.command.js';
@@ -59,6 +59,27 @@ describe('ticket command handlers', () => {
     );
     expect(await store.findById(id)).toEqual(before);
     expect(types()).toEqual(['ticket.created']);
+  });
+
+  it('rejects a stale expectedVersion at once and accepts the current one', async () => {
+    const id = await create();
+    const handler = new UpdateTicketHandler(store, uow, outbox);
+    await expect(
+      handler.execute(new UpdateTicketCommand(id, { title: 'B' }, 'user_b', 99)),
+    ).rejects.toBeInstanceOf(ConcurrencyConflictError);
+    expect(await store.findById(id)).toMatchObject({ title: 'A', version: 1 });
+    expect(types()).toEqual(['ticket.created']);
+
+    await handler.execute(new UpdateTicketCommand(id, { title: 'B' }, 'user_b', 1));
+    expect(await store.findById(id)).toMatchObject({ title: 'B', version: 2 });
+  });
+
+  it('never lets an explicit undefined wipe a field', async () => {
+    const id = await create();
+    await new UpdateTicketHandler(store, uow, outbox).execute(
+      new UpdateTicketCommand(id, { title: 'A2', description: undefined }, 'user_b'),
+    );
+    expect(await store.findById(id)).toMatchObject({ title: 'A2', description: '', version: 2 });
   });
 
   it('retries on a concurrent change and gives up after three conflicts', async () => {

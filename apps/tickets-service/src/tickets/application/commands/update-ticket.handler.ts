@@ -18,6 +18,8 @@ const MAX_ATTEMPTS = 3;
 /**
  * Optimistic read-modify-write: the update only applies if nobody changed the ticket since it
  * was read; on a conflict the command is replayed on the fresh state a few times, then rejected.
+ * A client-supplied `expectedVersion` is stricter: the ticket must still be at that version,
+ * otherwise the command is rejected immediately (the client edited a stale copy).
  */
 @CommandHandler(UpdateTicketCommand)
 export class UpdateTicketHandler implements ICommandHandler<UpdateTicketCommand, void> {
@@ -27,24 +29,28 @@ export class UpdateTicketHandler implements ICommandHandler<UpdateTicketCommand,
     @Inject(OUTBOX) private readonly outbox: Outbox,
   ) {}
 
-  async execute({ ticketId, dto, actor }: UpdateTicketCommand): Promise<void> {
+  async execute(command: UpdateTicketCommand): Promise<void> {
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-      if (await this.tryOnce(ticketId, dto, actor)) {
+      if (await this.tryOnce(command)) {
         return;
       }
     }
-    throw new ConcurrencyConflictError(ticketId);
+    throw new ConcurrencyConflictError(command.ticketId);
   }
 
   /** @returns `false` on a version conflict (caller retries). */
-  private async tryOnce(
-    ticketId: string,
-    dto: UpdateTicketCommand['dto'],
-    actor: string,
-  ): Promise<boolean> {
+  private async tryOnce({
+    ticketId,
+    dto,
+    actor,
+    expectedVersion,
+  }: UpdateTicketCommand): Promise<boolean> {
     const current = await this.tickets.findById(ticketId);
     if (!current) {
       throw new TicketNotFoundError(ticketId);
+    }
+    if (expectedVersion !== undefined && current.version !== expectedVersion) {
+      throw new ConcurrencyConflictError(ticketId); // stale client copy: retrying cannot help
     }
     const { ticket, events } = updateTicket(current, dto, actor);
     if (events.length === 0) {

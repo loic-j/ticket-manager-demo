@@ -10,7 +10,7 @@ async function bootstrap() {
   // Validates any @Body()/@Query()/@Param() that declares a `schema` (Zod, Valibot, ...).
   app.useGlobalPipes(new StandardSchemaValidationPipe());
   app.enableCors({ origin: config.get<string>('CORS_ORIGIN', 'http://localhost:3000').split(',') });
-  app.enableShutdownHooks(); // lets the consumer/relay and Prisma stop cleanly on SIGTERM
+  app.enableShutdownHooks(); // runs `onModuleDestroy` (Prisma disconnect) on SIGTERM
 
   await app.listen(config.get<number>('PORT', 3001));
 }

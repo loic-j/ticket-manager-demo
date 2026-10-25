@@ -58,9 +58,13 @@ export function updateTicket(
     return { ticket: current, events: [] };
   }
 
+  // Built from the diff (never from `dto` itself) so an explicit `undefined` cannot wipe a field.
+  const applied = Object.fromEntries(
+    Object.entries(changes).map(([field, change]) => [field, change.to]),
+  ) as Partial<Pick<Ticket, EditableField>>;
   const ticket: Ticket = {
     ...current,
-    ...dto,
+    ...applied,
     updatedBy: actor,
     version: current.version + 1,
     updatedAt: new Date().toISOString(),

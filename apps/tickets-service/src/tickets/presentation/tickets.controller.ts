@@ -13,11 +13,11 @@ import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import {
   createTicketSchema,
   ticketIdSchema,
-  updateTicketSchema,
+  updateTicketBodySchema,
   type AuthUser,
   type CreateTicketDto,
   type Ticket,
-  type UpdateTicketDto,
+  type UpdateTicketBody,
 } from '@ticketmanager/contracts';
 import { CurrentUser } from '@ticketmanager/nest-common';
 import {
@@ -61,11 +61,11 @@ export class TicketsController {
   @Patch(':id')
   async update(
     @Param('id', { schema: ticketIdSchema }) id: string,
-    @Body({ schema: updateTicketSchema }) dto: UpdateTicketDto,
+    @Body({ schema: updateTicketBodySchema }) { expectedVersion, ...dto }: UpdateTicketBody,
     @CurrentUser() user: AuthUser,
   ): Promise<Ticket> {
     await this.commandBus.execute<UpdateTicketCommand, void>(
-      new UpdateTicketCommand(id, dto, user.sub),
+      new UpdateTicketCommand(id, dto, user.sub, expectedVersion),
     );
     return this.queryBus.execute<GetTicketQuery, Ticket>(new GetTicketQuery(id));
   }

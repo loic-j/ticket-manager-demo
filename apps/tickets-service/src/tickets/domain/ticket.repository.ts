@@ -14,6 +14,6 @@ export interface TicketRepository {
   insert(ticket: Ticket): Promise<void>;
   /** @returns `false` when the stored version differs (concurrent change) or the row is gone. */
   update(ticket: Ticket): Promise<boolean>;
-  /** @returns the deleted ticket, or `null` if none. */
+  /** Atomic: @returns the ticket as it was deleted, or `null` if it (no longer) existed. */
   delete(id: string): Promise<Ticket | null>;
 }

@@ -1,6 +1,6 @@
 import { TicketNotFoundError } from '../../domain/ticket-not-found.error.js';
 import { createTicket } from '../../domain/ticket.js';
-import { InMemoryTicketRepository } from '../../infrastructure/in-memory-ticket.repository.js';
+import { InMemoryTicketRepository } from '../../infrastructure/testing.js';
 import { GetTicketHandler } from './get-ticket.handler.js';
 import { GetTicketQuery } from './get-ticket.query.js';
 import { ListTicketsHandler } from './list-tickets.handler.js';

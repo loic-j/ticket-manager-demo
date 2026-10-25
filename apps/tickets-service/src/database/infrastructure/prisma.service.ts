@@ -33,11 +33,11 @@ export class PrismaService implements OnModuleDestroy {
   }
 
   /** Runs `work` in one database transaction; nested calls join the ambient transaction. */
-  runInTransaction<T>(work: () => Promise<T>, options?: { timeout?: number }): Promise<T> {
+  runInTransaction<T>(work: () => Promise<T>): Promise<T> {
     if (this.transactions.getStore()) {
       return work();
     }
-    return this.client.$transaction((tx) => this.transactions.run(tx, work), options);
+    return this.client.$transaction((tx) => this.transactions.run(tx, work));
   }
 
   async onModuleDestroy(): Promise<void> {

@@ -1,4 +1,4 @@
-import type { Ticket, TicketChanges } from '../ticket.js';
+import type { ActorId, Ticket, TicketChanges } from '../ticket.js';
 
 /**
  * Domain events raised by the ticket aggregate. Plain classes (matched by `instanceof` when
@@ -19,8 +19,9 @@ export class TicketChangedEvent {
 export class TicketDeletedEvent {
   constructor(
     readonly ticketId: string,
+    /** Last stored version + 1, so the deletion supersedes every event of the ticket. */
     readonly version: number,
-    readonly deletedBy: string,
+    readonly deletedBy: ActorId,
   ) {}
 }
 

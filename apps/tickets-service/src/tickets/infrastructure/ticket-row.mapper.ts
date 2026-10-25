@@ -31,3 +31,21 @@ export function toTicketRow(ticket: Ticket): TicketRow {
     updatedAt: new Date(ticket.updatedAt),
   };
 }
+
+/** Columns a change may touch; identity and creation columns never move after insert. */
+export function toTicketUpdate(
+  ticket: Ticket,
+): Pick<
+  TicketRow,
+  'title' | 'description' | 'status' | 'priority' | 'updatedBy' | 'version' | 'updatedAt'
+> {
+  return {
+    title: ticket.title,
+    description: ticket.description,
+    status: ticket.status,
+    priority: ticket.priority,
+    updatedBy: ticket.updatedBy,
+    version: ticket.version,
+    updatedAt: new Date(ticket.updatedAt),
+  };
+}

@@ -62,6 +62,8 @@ model OutboxMessage {
   attempts      Int       @default(0)
   lastError     String?   @map("last_error")
 
-  @@index([publishedAt, sequence], map: "outbox_unpublished_idx")
+  // `outbox_unpublished_idx` (partial: `(sequence) WHERE published_at IS NULL`) cannot be
+  // declared here; it lives in migration `20261026024254_outbox_pending_idx` and in
+  // packages/outbox/sql/outbox_messages.sql.
   @@map("outbox_messages")
 }

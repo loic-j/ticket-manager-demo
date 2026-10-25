@@ -10,7 +10,9 @@
   controllers, error filters, broker consumers). Never put a class directly at a folder root.
   Register handlers in the module's `providers` via the `TICKET_COMMAND_HANDLERS` /
   `TICKET_QUERY_HANDLERS` arrays.
-- Allowed imports per layer: `domain/` none (not even `@ticketmanager/events`); `application/`
+- Allowed imports per layer: `domain/` only type-only imports from `@ticketmanager/contracts`
+  (the ticket model is the API shape today, see `domain/ticket.ts`), never `@ticketmanager/events`,
+  NestJS, Prisma or HTTP; `application/`
   `@nestjs/common`, `@nestjs/cqrs`, `@ticketmanager/events` and the cross-cutting ports in
   `src/messaging/application/ports` (explicit exception); `infrastructure/` anything; `presentation/`
   `@nestjs/*` only (no Prisma).
@@ -31,10 +33,12 @@
   available as `req.user: AuthUser` (shape in `@ticketmanager/contracts`).
 - Validation: `StandardSchemaValidationPipe` is global; pass shared Zod schemas via the `schema`
   option on `@Body()` / `@Param()` / `@Query()`. No `class-validator`.
-- Tests: Vitest. Handler specs next to the code (`*.spec.ts`, in-memory adapter + fake EventBus),
-  e2e in `test/*.e2e-spec.ts` (supertest; `TestAuth.createApp()` binds one in-memory instance to
-  both ports and signs tokens with a local key pair), DB integration in `test/*.int-spec.ts`
-  (`pnpm test:int`, needs `pnpm infra:up`).
+- Tests: Vitest. Handler specs next to the code (`*.spec.ts`, with the doubles
+  `InMemoryTicketRepository` from `tickets/infrastructure/testing.ts` and `ImmediateUnitOfWork` /
+  `InMemoryOutbox` from `messaging/infrastructure/testing.ts`), e2e in `test/*.e2e-spec.ts`
+  (supertest; `TestAuth` is built on `LocalTokenIssuer` from `@ticketmanager/nest-common/testing`:
+  `createApp()` binds one in-memory instance to both ports and overrides `JwtVerifier` with the
+  local key pair), DB integration in `test/*.int-spec.ts` (`pnpm test:int`, needs `pnpm infra:up`).
 - Lint: oxlint (`.oxlintrc.json`). `no-floating-promises` is an error: `await` or `void` promises.
 - Env: `.env` (gitignored) loaded by `ConfigModule`; keys documented in `.env.example`:
   `PORT`, `CORS_ORIGIN`, `DATABASE_URL`, `LOGTO_ENDPOINT`, `LOGTO_API_RESOURCE`.

@@ -6,6 +6,10 @@
 # Console: http://localhost:3302   OIDC endpoint: http://localhost:3301
 # Mailpit UI: http://localhost:8025   RabbitMQ UI: http://localhost:15672
 # tickets-db: localhost:5433   notifications-db: localhost:5434
+#
+# Secrets: `${VAR}` references are interpolated from `infra/.env` (the `.env` of the project
+# directory, which Compose takes from the first `-f` file), never injected wholesale with
+# `env_file`, so each container only receives the variables it uses. Copy `infra/.env.example`.
 name: ticketmanager
 
 # Worker processes live in their own files (one image each) but in the same project.
@@ -30,6 +34,17 @@ services:
       DB_URL: postgres://postgres:p0stgr3s@logto-db:5432/logto
       PORT: 3301
       ADMIN_PORT: 3302
+    # The image is Alpine-based with busybox wget (no curl). Seeding + start take a while.
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'wget -qO- http://localhost:3301/oidc/.well-known/openid-configuration >/dev/null || exit 1',
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
 
   logto-db:
     image: postgres:17-alpine
@@ -119,19 +134,19 @@ services:
     environment:
       DATABASE_URL: postgresql://tickets:tickets@tickets-db:5432/tickets
 
+  # HTTP API only: the broker is talked to by tickets-relay (compose/tickets-relay.yml).
   tickets-service:
     profiles: ['apps']
     build:
       context: ..
       dockerfile: apps/tickets-service/Dockerfile
       target: runner
+    restart: unless-stopped
     depends_on:
       tickets-migrate:
         condition: service_completed_successfully
-      rabbitmq:
-        condition: service_healthy
       logto:
-        condition: service_started
+        condition: service_healthy
     ports:
       - '3001:3001'
     extra_hosts:
@@ -142,7 +157,12 @@ services:
       DATABASE_URL: postgresql://tickets:tickets@tickets-db:5432/tickets
       LOGTO_ENDPOINT: http://host.docker.internal:3301
       LOGTO_API_RESOURCE: https://api.ticketmanager.local
-      RABBITMQ_URL: amqp://ticketmanager:ticketmanager@rabbitmq:5672
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:3001/health || exit 1']
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
 
   notifications-migrate:
     profiles: ['apps']
@@ -162,6 +182,7 @@ services:
       context: ..
       dockerfile: apps/notifications-service/Dockerfile
       target: runner
+    restart: unless-stopped
     depends_on:
       notifications-migrate:
         condition: service_completed_successfully
@@ -170,26 +191,35 @@ services:
       mailpit:
         condition: service_started
       logto:
-        condition: service_started
+        condition: service_healthy
       directory-service:
-        condition: service_started
+        condition: service_healthy
     ports:
       - '3002:3002'
     extra_hosts:
       - 'host.docker.internal:host-gateway'
-    env_file:
-      - path: ./.env
-        required: true
     environment:
+      # Local stack: enables the dev fallbacks when no M2M app is configured; production
+      # deployments set NODE_ENV=production (the image default) and require the M2M app.
+      NODE_ENV: development
       PORT: 3002
       CORS_ORIGIN: http://localhost:3000
       DATABASE_URL: postgresql://notifications:notifications@notifications-db:5432/notifications
       LOGTO_ENDPOINT: http://host.docker.internal:3301
       LOGTO_API_RESOURCE: https://notifications.ticketmanager.local
+      LOGTO_M2M_APP_ID: ${LOGTO_M2M_APP_ID:-}
+      LOGTO_M2M_APP_SECRET: ${LOGTO_M2M_APP_SECRET:-}
+      NOTIFICATIONS_DEV_FALLBACK_EMAIL: ${NOTIFICATIONS_DEV_FALLBACK_EMAIL:-}
       RABBITMQ_URL: amqp://ticketmanager:ticketmanager@rabbitmq:5672
       SMTP_URL: smtp://mailpit:1025
       MAIL_FROM: Ticket Manager <noreply@ticketmanager.local>
       DIRECTORY_API_URL: http://directory-service:3003
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:3002/health || exit 1']
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
 
   # User directory: read-only facade over the Logto Management API, no database (ADR 002).
   directory-service:
@@ -198,43 +228,57 @@ services:
       context: ..
       dockerfile: apps/directory-service/Dockerfile
       target: runner
+    restart: unless-stopped
     depends_on:
       logto:
-        condition: service_started
+        condition: service_healthy
     ports:
       - '3003:3003'
     extra_hosts:
       - 'host.docker.internal:host-gateway'
-    env_file:
-      - path: ./.env
-        required: true
     environment:
+      # Local stack: enables the dev fallbacks when no M2M app is configured; production
+      # deployments set NODE_ENV=production (the image default) and require the M2M app.
+      NODE_ENV: development
       PORT: 3003
       LOGTO_ENDPOINT: http://host.docker.internal:3301
       LOGTO_API_RESOURCE: https://directory.ticketmanager.local
+      LOGTO_M2M_APP_ID: ${LOGTO_M2M_APP_ID:-}
+      LOGTO_M2M_APP_SECRET: ${LOGTO_M2M_APP_SECRET:-}
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:3003/health || exit 1']
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
 
   web:
     profiles: ['apps']
     build:
       context: ..
       dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
     depends_on:
-      - tickets-service
-      - notifications-service
-      - directory-service
+      tickets-service:
+        condition: service_healthy
+      notifications-service:
+        condition: service_healthy
+      directory-service:
+        condition: service_healthy
     ports:
       - '3000:3000'
     extra_hosts:
       - 'host.docker.internal:host-gateway'
-    env_file:
-      - path: ./.env
-        required: true
     environment:
       TICKETS_API_URL: http://tickets-service:3001
       NOTIFICATIONS_API_URL: http://notifications-service:3002
       DIRECTORY_API_URL: http://directory-service:3003
       BASE_URL: http://localhost:3000
       LOGTO_ENDPOINT: http://host.docker.internal:3301
+      # Required: Compose refuses to start without them (`:?`).
+      LOGTO_APP_ID: ${LOGTO_APP_ID:?set it in infra/.env (copy infra/.env.example)}
+      LOGTO_APP_SECRET: ${LOGTO_APP_SECRET:?set it in infra/.env (copy infra/.env.example)}
+      LOGTO_COOKIE_SECRET: ${LOGTO_COOKIE_SECRET:?set it in infra/.env (copy infra/.env.example)}
 
 volumes:
   logto-db-data:

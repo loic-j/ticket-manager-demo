@@ -1,6 +1,7 @@
 # Email retry worker of notifications-service: its own image (Dockerfile target "email-retry").
 # Stateless: scale with `--scale notifications-email-retry=N`, workers claim distinct rows.
-# Included by ../docker-compose.yml so it shares the project, network and dependencies.
+# Included by ../docker-compose.yml so it shares the project, network, dependencies and the
+# `${VAR}` interpolation from ../.env.
 services:
   notifications-email-retry:
     profiles: ['apps']
@@ -8,21 +9,27 @@ services:
       context: ../..
       dockerfile: apps/notifications-service/Dockerfile
       target: email-retry
+    restart: unless-stopped
     depends_on:
       notifications-migrate:
         condition: service_completed_successfully
       mailpit:
         condition: service_started
+      logto:
+        condition: service_healthy
       directory-service:
-        condition: service_started
+        condition: service_healthy
     extra_hosts:
       - 'host.docker.internal:host-gateway'
-    env_file:
-      - path: ../.env
-        required: true
     environment:
+      # Local stack: enables the dev fallbacks when no M2M app is configured; production
+      # deployments set NODE_ENV=production (the image default) and require the M2M app.
+      NODE_ENV: development
       DATABASE_URL: postgresql://notifications:notifications@notifications-db:5432/notifications
       LOGTO_ENDPOINT: http://host.docker.internal:3301
+      LOGTO_M2M_APP_ID: ${LOGTO_M2M_APP_ID:-}
+      LOGTO_M2M_APP_SECRET: ${LOGTO_M2M_APP_SECRET:-}
+      NOTIFICATIONS_DEV_FALLBACK_EMAIL: ${NOTIFICATIONS_DEV_FALLBACK_EMAIL:-}
       DIRECTORY_API_URL: http://directory-service:3003
       SMTP_URL: smtp://mailpit:1025
       MAIL_FROM: Ticket Manager <noreply@ticketmanager.local>

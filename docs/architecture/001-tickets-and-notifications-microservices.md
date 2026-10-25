@@ -2,6 +2,17 @@
 
 Status: accepted (phases 0-4 done 2026-10-24, broker: RabbitMQ; phase 5 optional) · Date: 2026-10-24 · Scope: learning-oriented but production-shaped
 
+> **Status note (2026-10-26).** Superseded in part:
+>
+> - by [ADR 002](./002-user-directory-service.md): notifications-service no longer calls the Logto
+>   Management API; every user lookup goes through directory-service (synchronous, read-only);
+> - by the current events rule (see `CLAUDE.md`, "Aggregates carry a `version`"): integration
+>   events carry the **full aggregate state plus its version** (`ticket.created`, `ticket.changed`,
+>   `ticket.deleted`), not the minimal payloads sketched in §4.4, and consumers order by version,
+>   never by delivery order.
+>
+> The sections below are kept as written and annotated inline where they describe the old behaviour.
+
 ## 1. Context and goals
 
 Today the system is a modular monolith: one NestJS API (`apps/tickets-service`) owning tickets, a Next.js app
@@ -34,21 +45,21 @@ Browser ──► web (Next.js BFF, :3000)
               │                        │ queue "notifications.tickets"
               └──HTTP, bearer──► notifications-service (:3002) ──► notifications-db (PG)
                                        ├──SMTP──► Mailpit (:1025 / UI :8025)
-                                       └──M2M──► Logto Management API (user email lookup)
+                                       └──M2M──► Logto Management API (user email lookup)   (superseded, see ADR 002: → directory-service)
 Logto (:3301) issues all user tokens; each service validates JWTs itself (jose + JWKS).
 ```
 
 Decisions:
 
-| Topic                    | Decision                                                                                                                                                                         | Why                                                                                                                                                         |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Broker                   | RabbitMQ 4 (`rabbitmq:4-management`)                                                                                                                                             | First-class NestJS transport, publisher confirms, manual acks, dead-letter queues, UI for debugging. NATS JetStream is lighter but has weaker Nest tooling. |
-| Delivery                 | At-least-once + idempotent consumers                                                                                                                                             | Outbox guarantees publication; consumers dedupe by event id. Exactly-once is not worth its cost.                                                            |
-| Event contract           | Versioned Zod schemas in `packages/events`                                                                                                                                       | Same "contract first" rule as HTTP. Envelope + typed payloads, `type` like `ticket.created`, `version` integer.                                             |
-| Read model (CQRS)        | Phase 1: same tables, separate query repository returning DTOs. Phase 2 (optional): denormalised `ticket_summaries` projection fed by domain events.                             | Start with "CQRS-lite" to learn the split without a second store; graduate when a query needs it.                                                           |
-| Service-to-service calls | None synchronous between services. _Amended by ADR 002 (2026-10-25): one read-only synchronous dependency, directory-service._                                                   | Notifications only needs events + Logto. Keeps services independent.                                                                                        |
-| Identity of the actor    | `createdBy` / `updatedBy` = Logto `sub`, carried in events                                                                                                                       | Email is resolved by notifications-service through Logto Management API (M2M), cached per user.                                                             |
-| Shared code              | `packages/contracts` → split into `packages/contracts` (HTTP), `packages/events` (integration events), `packages/nest-common` (auth guard, config helpers, outbox/inbox modules) | Each service depends on the smallest slice it needs; `nest-common` avoids copy-pasting the guard.                                                           |
+| Topic                    | Decision                                                                                                                                                                         | Why                                                                                                                                                             |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Broker                   | RabbitMQ 4 (`rabbitmq:4-management`)                                                                                                                                             | First-class NestJS transport, publisher confirms, manual acks, dead-letter queues, UI for debugging. NATS JetStream is lighter but has weaker Nest tooling.     |
+| Delivery                 | At-least-once + idempotent consumers                                                                                                                                             | Outbox guarantees publication; consumers dedupe by event id. Exactly-once is not worth its cost.                                                                |
+| Event contract           | Versioned Zod schemas in `packages/events`                                                                                                                                       | Same "contract first" rule as HTTP. Envelope + typed payloads, `type` like `ticket.created`, `version` integer.                                                 |
+| Read model (CQRS)        | Phase 1: same tables, separate query repository returning DTOs. Phase 2 (optional): denormalised `ticket_summaries` projection fed by domain events.                             | Start with "CQRS-lite" to learn the split without a second store; graduate when a query needs it.                                                               |
+| Service-to-service calls | None synchronous between services. _Amended by ADR 002 (2026-10-25): one read-only synchronous dependency, directory-service._                                                   | Notifications only needs events + Logto. Keeps services independent.                                                                                            |
+| Identity of the actor    | `createdBy` / `updatedBy` = Logto `sub`, carried in events                                                                                                                       | Email is resolved by notifications-service through Logto Management API (M2M), cached per user. _(superseded, see ADR 002: resolved through directory-service)_ |
+| Shared code              | `packages/contracts` → split into `packages/contracts` (HTTP), `packages/events` (integration events), `packages/nest-common` (auth guard, config helpers, outbox/inbox modules) | Each service depends on the smallest slice it needs; `nest-common` avoids copy-pasting the guard.                                                               |
 
 ## 3. Repository layout after the refactor
 
@@ -120,6 +131,9 @@ occurredAt, publishedAt?, attempts, lastError? }` in `tickets-db`.
 
 ### 4.4 Events contract (`packages/events`)
 
+_(superseded in part: the envelope stands, but the payloads below are the minimal ones; the
+implemented events carry the full ticket state and its `version`, see the status note.)_
+
 ```ts
 export const eventEnvelopeSchema = z.object({
   id: z.uuid(),
@@ -143,7 +157,9 @@ export const ticketStatusChangedV1 = defineEvent(
 ```
 
 Breaking changes create a new version (`ticket.created` v2); consumers declare the versions they
-accept. Payloads carry ids and the minimum data needed, never full aggregates.
+accept. ~~Payloads carry ids and the minimum data needed, never full aggregates.~~ _(superseded:
+payloads carry the full aggregate state with its `version` so that late or replayed events can be
+ignored by comparing versions.)_
 
 ### 4.5 Auth across services
 
@@ -152,7 +168,9 @@ accept. Payloads carry ids and the minimum data needed, never full aggregates.
   both (`resources: [...]`) and picks the right one per call.
 - `AccessTokenGuard` moves to `packages/nest-common` with the audience injected by each service.
 - notifications-service gets a Logto **machine-to-machine** application with the Management API
-  role to read user emails (`GET /api/users/{id}`), cached in memory (TTL 10 min).
+  role to read user emails (`GET /api/users/{id}`), cached in memory (TTL 10 min). _(superseded,
+  see ADR 002: the M2M app and the Management API calls moved to directory-service;
+  notifications-service calls `GET /users/:id` on it with a `directory-client` M2M token.)_
 
 ### 4.6 Observability basics
 

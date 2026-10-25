@@ -24,7 +24,7 @@ packages/
 
 ## Requirements
 
-- Node.js ≥ 22.12 (see `.node-version`)
+- Node 26 via nvm (`.nvmrc`); the code requires Node ≥ 22.12 (`engines`)
 - pnpm 12 (`corepack enable` or `npm i -g pnpm`)
 
 ## Commands
@@ -32,16 +32,16 @@ packages/
 All commands run from the repo root and go through Turborepo, which builds dependencies first
 and caches results.
 
-| Command            | What it does                                            |
-| ------------------ | ------------------------------------------------------- |
-| `pnpm install`     | Install everything                                      |
-| `pnpm dev`         | Build `shared`, then run API, web and `shared` in watch |
-| `pnpm build`       | Build all packages                                      |
-| `pnpm check-types` | `tsc --noEmit` in every package                         |
-| `pnpm lint`        | oxlint (api) + ESLint (web)                             |
-| `pnpm test`        | Vitest unit tests (api, shared)                         |
-| `pnpm test:e2e`    | API e2e tests (supertest)                               |
-| `pnpm format`      | Prettier on the whole repo                              |
+| Command            | What it does                                                |
+| ------------------ | ----------------------------------------------------------- |
+| `pnpm install`     | Install everything                                          |
+| `pnpm dev`         | Build the packages, then run every app and package in watch |
+| `pnpm build`       | Build all packages                                          |
+| `pnpm check-types` | `tsc --noEmit` in every package                             |
+| `pnpm lint`        | oxlint (services, packages) + ESLint (web)                  |
+| `pnpm test`        | Vitest unit tests (services, packages)                      |
+| `pnpm test:e2e`    | Service e2e tests (supertest, no DB or broker)              |
+| `pnpm format`      | Prettier on the whole repo                                  |
 
 Day-to-day: `pnpm infra:up` once, then `pnpm dev`, which starts every process: the three HTTP
 services, the tickets relay (`apps/tickets-relay-service`), the notifications email-retry worker
@@ -59,7 +59,8 @@ Copy each `apps/*/.env.example` to `.env` (`.env.local` for the web app) to over
 2. The API validates requests with the same schemas through NestJS 12's Standard Schema support:
    `@Body({ schema: createTicketSchema })`. A global `StandardSchemaValidationPipe` is registered
    in `apps/tickets-service/src/main.ts`. No class-based DTOs or `class-validator` needed.
-3. The web app imports the inferred types (and may reuse the schemas client-side for forms).
+3. The web app imports the inferred types and validates its forms server-side with the same
+   schemas (`safeParse` in the Server Actions, `src/lib/*-actions.ts`) before calling the API.
 4. `@ticketmanager/contracts` is a _compiled_ internal package: `tsc` emits `dist/` with `.js`,
    `.d.ts` and declaration maps. Both apps consume the compiled output, so it works with the
    NestJS `tsc` build, with Node at runtime, with Vitest and with Turbopack alike. Turborepo's
@@ -98,7 +99,8 @@ The e2e tests replace the verifier with a local key pair: they run without Logto
 3. **Applications → Create application → Traditional web → Next.js (App Router)**, name
    `ticketmanager-web`:
    - Redirect URI: `http://localhost:3000/callback`
-   - Post sign-out redirect URI: `http://localhost:3000/`
+   - Post sign-out redirect URI: `http://localhost:3000` (exactly `BASE_URL`, no trailing slash:
+     `@logto/next` redirects to `config.baseUrl` after sign-out and Logto requires an exact match)
    - Copy the _App ID_ and an _App secret_.
 4. **API resources → Create API resource**, once per service: `ticketmanager-tickets-service`
    (`https://api.ticketmanager.local`), `ticketmanager-notifications-service`
@@ -111,7 +113,8 @@ The e2e tests replace the verifier with a local key pair: they run without Logto
    `LOGTO_COOKIE_SECRET` of 32+ characters (`openssl rand -base64 32`).
 7. `pnpm dev`, open `http://localhost:3000`, click _Sign in_.
 
-Stop with `pnpm infra:down` (data persists in the Docker volumes `logto-db-data` and `tickets-db-data`).
+Stop with `pnpm infra:down` (data persists in the Docker volumes `logto-db-data`, `tickets-db-data`,
+`notifications-db-data` and `rabbitmq-data`).
 
 ### Email sign-up (local)
 
@@ -206,7 +209,7 @@ and retried by the email-retry worker process (`EMAIL_MAX_ATTEMPTS`; image
 so a Logto or SMTP outage delays them instead of losing them. The handler is
 idempotent through an **inbox** table (`processed_events`, claimed in the same transaction as the
 notification row), so the at-least-once delivery never produces a second notification or email.
-`ticket.created` and `ticket.status-changed` notify the ticket creator; the recipient's email is
+`ticket.created` and `ticket.changed` (status edits) notify the ticket creator; the recipient's email is
 resolved through directory-service (synchronous `GET /users/:id` with a machine-to-machine token,
 or `NOTIFICATIONS_DEV_FALLBACK_EMAIL` locally when no M2M credentials are set) and sent over SMTP
 to Mailpit. The service also exposes `GET /notifications` and `POST /notifications/:id/read`,
@@ -291,8 +294,20 @@ imported by the worker entry point).
   resolve `localhost` to your machine. The override `infra/docker-compose.docker.yml` therefore
   exposes Logto as `http://host.docker.internal:3301` (console `:3302`), a name Docker Desktop
   resolves from the host (Windows/macOS hosts file) and from containers.
-- The `web` container reads the Logto credentials from `infra/.env` (copy `infra/.env.example`,
-  same values as `apps/web/.env.local`). The app in Logto keeps `http://localhost:3000/callback`.
+- Secrets come from `infra/.env` (copy `infra/.env.example`): Compose interpolates the `${VAR}`
+  references of the compose files from the `.env` of its project directory (`infra/`), and each
+  container only receives the variables it declares. The `web` container needs the Logto app
+  credentials (same values as `apps/web/.env.local`, the stack refuses to start without them);
+  the app in Logto keeps `http://localhost:3000/callback`.
+- The local stack runs directory-service, notifications-service and the email-retry worker with
+  `NODE_ENV=development` (set in compose; the images default to `production`) so that it works
+  without a machine-to-machine app: the directory answers "unknown" and notifications fall back
+  to `NOTIFICATIONS_DEV_FALLBACK_EMAIL`. A production deployment keeps `NODE_ENV=production` and
+  must configure `LOGTO_M2M_APP_ID` / `LOGTO_M2M_APP_SECRET`.
+- Every HTTP service exposes a public `GET /health`; compose uses it as a healthcheck (busybox
+  `wget` from the Alpine images, Logto is probed on its OIDC discovery document), so `web` and the
+  consumers start only once their dependencies answer. Long-running services restart
+  `unless-stopped`; the migration containers run once.
 - Stop with `pnpm docker:down`. To go back to the host dev mode, run `pnpm infra:up` again: it
   recreates Logto with its `localhost` endpoints.
 

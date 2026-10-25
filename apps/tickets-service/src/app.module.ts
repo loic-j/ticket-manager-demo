@@ -3,7 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { TICKETS_API_RESOURCE } from '@ticketmanager/contracts';
 import { AuthModule } from '@ticketmanager/nest-common';
 import { DatabaseModule } from './database/database.module.js';
-import { HealthController } from './health/health.controller.js';
+import { HealthController } from './health/presentation/health.controller.js';
 import { MessagingModule } from './messaging/messaging.module.js';
 import { TicketsModule } from './tickets/tickets.module.js';
 

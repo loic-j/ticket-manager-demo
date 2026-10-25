@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { Ticket } from '@ticketmanager/contracts';
-import { PrismaService } from '../../database/prisma.service.js';
+import { PrismaService } from '../../database/infrastructure/prisma.service.js';
 import type { TicketReadRepository } from '../application/ports/ticket-read.repository.js';
 import { toTicket } from './ticket-row.mapper.js';
 

@@ -2,13 +2,13 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { Injectable, type OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient, type Prisma } from '../generated/prisma/client.js';
+import { PrismaClient, type Prisma } from '../../generated/prisma/client.js';
 
 /** Client usable inside or outside a transaction (models + raw queries, no `$transaction`). */
 export type DbClient = Prisma.TransactionClient;
 
 /**
- * Single Prisma client for the notifications database, wrapped (not extended: Prisma returns a Proxy
+ * Single Prisma client for the tickets database, wrapped (not extended: Prisma returns a Proxy
  * from its constructor, which breaks getters on subclasses). Connects lazily on first query.
  *
  * `db` returns the transaction client of the ambient `runInTransaction()` call when there is
@@ -23,7 +23,7 @@ export class PrismaService implements OnModuleDestroy {
   constructor(config: ConfigService) {
     const connectionString = config.get<string>('DATABASE_URL');
     if (!connectionString) {
-      throw new Error('DATABASE_URL is not set (see apps/notifications-service/.env.example)');
+      throw new Error('DATABASE_URL is not set (see apps/tickets-service/.env.example)');
     }
     this.client = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
   }

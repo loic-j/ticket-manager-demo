@@ -5,7 +5,7 @@ import {
   TicketDeletedEvent,
   type TicketDomainEvent,
 } from '../../domain/events/ticket-events.js';
-import type { OutboxEvent } from '../../../messaging/ports/outbox.js';
+import type { OutboxEvent } from '../../../messaging/application/ports/outbox.js';
 
 const AGGREGATE = 'ticket';
 

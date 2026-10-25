@@ -8,8 +8,8 @@ import {
 import { CommandBus } from '@nestjs/cqrs';
 import { parseEnvelope } from '@ticketmanager/events';
 import amqp, { type Channel, type ChannelModel, type ConsumeMessage } from 'amqplib';
-import { HandleTicketEventCommand } from '../notifications/application/commands/index.js';
-import { CONSUMER_CONFIG, type ConsumerConfig } from './messaging.config.js';
+import { HandleTicketEventCommand } from '../../notifications/application/commands/index.js';
+import { CONSUMER_CONFIG, type ConsumerConfig } from '../messaging.config.js';
 
 const RECONNECT_DELAY_MS = 5_000;
 const MAX_RETRY_BACKOFF_MS = 10_000;

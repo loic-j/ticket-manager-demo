@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { ConfigService } from '@nestjs/config';
 import { ticketCreatedV1, type EventEnvelope } from '@ticketmanager/events';
 import amqp from 'amqplib';
-import { PrismaService } from '../src/database/prisma.service.js';
+import { PrismaService } from '../src/database/infrastructure/prisma.service.js';
 import { OutboxRelay } from '../src/messaging/infrastructure/outbox-relay.js';
 import { PrismaOutbox } from '../src/messaging/infrastructure/prisma-outbox.js';
 import { PrismaUnitOfWork } from '../src/messaging/infrastructure/prisma-unit-of-work.js';

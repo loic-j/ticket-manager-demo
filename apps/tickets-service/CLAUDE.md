@@ -1,14 +1,18 @@
 # apps/tickets-service (NestJS 12, ESM, Prisma 7)
 
-- Layout per bounded context (see `src/tickets/`, copy its shape): `domain/` (model, pure
-  transitions, write port, events, errors), `application/commands|queries|ports` (@nestjs/cqrs
-  handlers; commands return ids, queries return `@ticketmanager/contracts` views),
-  `infrastructure/` (Prisma write + read adapters, in-memory adapter for tests), `presentation/`
-  (controller dispatching to the buses, error filter). Register handlers in the module's
-  `providers` via the `TICKET_COMMAND_HANDLERS` / `TICKET_QUERY_HANDLERS` arrays.
+- Every folder under `src/` (business context or cross-cutting module: `tickets`, `messaging`,
+  `database`, `health`) has the same shape: NestJS modules and config at its root
+  (`<name>.module.ts`, `<name>.config.ts`), code only inside the layer folders it needs:
+  `domain/` (model, pure transitions, write port, events, errors),
+  `application/commands|queries|ports|services|events` (@nestjs/cqrs handlers; commands return
+  ids, queries return `@ticketmanager/contracts` views), `infrastructure/` (Prisma / RabbitMQ /
+  SMTP adapters, in-memory doubles in `testing.ts`), `presentation/` (inbound adapters: HTTP
+  controllers, error filters, broker consumers). Never put a class directly at a folder root.
+  Register handlers in the module's `providers` via the `TICKET_COMMAND_HANDLERS` /
+  `TICKET_QUERY_HANDLERS` arrays.
 - Allowed imports per layer: `domain/` none (not even `@ticketmanager/events`); `application/`
   `@nestjs/common`, `@nestjs/cqrs`, `@ticketmanager/events` and the cross-cutting ports in
-  `src/messaging/ports` (explicit exception); `infrastructure/` anything; `presentation/`
+  `src/messaging/application/ports` (explicit exception); `infrastructure/` anything; `presentation/`
   `@nestjs/*` only (no Prisma).
   Prisma row mapping lives in `infrastructure/<name>-row.mapper.ts`, shared by both adapters.
 - Events: a handler maps domain events with `toIntegrationEvents()` and appends them to the

@@ -45,6 +45,8 @@ every edited file through a hook; do not hand-format.
   `application/commands` handlers use the write port only, `application/queries` handlers use the
   read port only and return API views; `infrastructure/` implements the ports; `presentation/`
   controllers only validate and dispatch to `CommandBus` / `QueryBus` (never inject a repository).
+  Every folder under `src/` follows that shape, cross-cutting modules included (`messaging`,
+  `database`, `health`): modules and config at the folder root, code in the layer folders only.
   Domain errors are mapped to HTTP by a filter in `presentation/`, never thrown as `HttpException`.
 - **Ports are injection tokens**: a TS interface does not exist at runtime, so each port exports a
   `Symbol`/string token (`TICKET_REPOSITORY`) and the module binds it. Tests override the token.

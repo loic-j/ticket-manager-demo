@@ -5,7 +5,7 @@ import {
   UNIT_OF_WORK,
   type Outbox,
   type UnitOfWork,
-} from '../../../messaging/ports/index.js';
+} from '../../../messaging/application/ports/index.js';
 import { TICKET_REPOSITORY, type TicketRepository } from '../../domain/ticket.repository.js';
 import { createTicket } from '../../domain/ticket.js';
 import { toIntegrationEvents } from '../events/ticket-integration-events.js';

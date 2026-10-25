@@ -2,7 +2,7 @@ import { Inject, Injectable, Logger, type OnModuleDestroy } from '@nestjs/common
 import type { EventEnvelope } from '@ticketmanager/events';
 import amqp, { type ChannelModel, type ConfirmChannel } from 'amqplib';
 import { MESSAGING_CONFIG, type MessagingConfig } from '../messaging.config.js';
-import type { EventPublisher } from '../ports/event-publisher.js';
+import type { EventPublisher } from '../application/ports/event-publisher.js';
 
 /**
  * Publishes envelopes to a durable topic exchange with publisher confirms. The connection is

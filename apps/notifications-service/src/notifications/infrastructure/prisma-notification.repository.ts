@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { Notification as NotificationView } from '@ticketmanager/contracts';
-import { PrismaService } from '../../database/prisma.service.js';
+import { PrismaService } from '../../database/infrastructure/prisma.service.js';
 import type { NotificationReadRepository } from '../application/ports/notification-read.repository.js';
 import type { NotificationRepository } from '../domain/notification.repository.js';
 import type { EmailDelivery, Notification } from '../domain/notification.js';

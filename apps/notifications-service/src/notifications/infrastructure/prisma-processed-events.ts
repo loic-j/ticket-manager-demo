@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../database/prisma.service.js';
+import { PrismaService } from '../../database/infrastructure/prisma.service.js';
 import type { ProcessedEvents } from '../application/ports/processed-events.js';
 
 /** Primary-key based inbox; the insert fails inside the ambient transaction on a duplicate. */

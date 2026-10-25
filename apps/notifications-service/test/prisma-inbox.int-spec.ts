@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '../src/database/prisma.service.js';
+import { PrismaService } from '../src/database/infrastructure/prisma.service.js';
 import { createNotification } from '../src/notifications/domain/notification.js';
 import {
   PrismaNotificationReadRepository,

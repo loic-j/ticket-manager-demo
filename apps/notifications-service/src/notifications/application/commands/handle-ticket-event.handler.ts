@@ -6,7 +6,7 @@ import {
   NOTIFICATION_REPOSITORY,
   type NotificationRepository,
 } from '../../domain/notification.repository.js';
-import { EmailDeliveryService } from '../email-delivery.service.js';
+import { EmailDeliveryService } from '../services/email-delivery.service.js';
 import {
   PROCESSED_EVENTS,
   TICKET_VERSIONS,

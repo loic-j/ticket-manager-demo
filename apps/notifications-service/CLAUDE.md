@@ -2,7 +2,7 @@
 
 Same rules and layout as `apps/tickets-service/CLAUDE.md` (read it first). Specifics:
 
-- Inbound: `src/messaging/ticket-events.consumer.ts` consumes the **quorum** queue
+- Inbound: `src/messaging/presentation/ticket-events.consumer.ts` consumes the **quorum** queue
   `notifications.tickets` (bound to `ticket.#`), dispatches `HandleTicketEventCommand`, acks on
   success, nacks with backoff on failure; the broker dead-letters after `CONSUMER_DELIVERY_LIMIT`
   deliveries to `<exchange>.dlx` → `notifications.tickets.dead`. Unparsable messages are

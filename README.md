@@ -137,6 +137,11 @@ tickets/
   tickets.module.ts   Composition root: CqrsModule, handlers, port → adapter bindings
 ```
 
+Every other folder under `src/` follows the same shape, including the cross-cutting ones:
+`messaging/` (`application/ports`, `infrastructure/` outbox + relay, `presentation/` consumer in
+notifications-service), `database/infrastructure/prisma.service.ts`,
+`health/presentation/health.controller.ts`. Modules and config files sit at the folder root.
+
 Commands return ids; the controller reads the result back through a query. Domain transitions
 return `{ ticket, events }`; handlers persist the state and the matching integration events in
 one transaction (see "Events and outbox" below), then publish the domain events in-process. Request validation happens at the boundary with the Zod

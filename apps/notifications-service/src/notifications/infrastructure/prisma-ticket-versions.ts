@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../database/prisma.service.js';
+import { PrismaService } from '../../database/infrastructure/prisma.service.js';
 import type { TicketVersions } from '../application/ports/ticket-versions.js';
 
 /** One atomic statement: insert the version, or raise it only when the new one is greater. */

@@ -5,7 +5,7 @@ import {
   type OnModuleDestroy,
   type OnModuleInit,
 } from '@nestjs/common';
-import { EmailDeliveryService } from '../application/email-delivery.service.js';
+import { EmailDeliveryService } from '../application/services/email-delivery.service.js';
 import {
   NOTIFICATION_REPOSITORY,
   type NotificationRepository,

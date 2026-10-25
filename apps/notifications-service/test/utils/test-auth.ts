@@ -5,8 +5,8 @@ import { JwtVerifier, loadAuthConfig, toAuthUser } from '@ticketmanager/nest-com
 import { generateKeyPair, jwtVerify, SignJWT, type CryptoKey } from 'jose';
 import type { App } from 'supertest/types.js';
 import { AppModule } from '../../src/app.module.js';
-import { PrismaService } from '../../src/database/prisma.service.js';
-import { TicketEventsConsumer } from '../../src/messaging/ticket-events.consumer.js';
+import { PrismaService } from '../../src/database/infrastructure/prisma.service.js';
+import { TicketEventsConsumer } from '../../src/messaging/presentation/ticket-events.consumer.js';
 import {
   MAILER,
   NOTIFICATION_READ_REPOSITORY,

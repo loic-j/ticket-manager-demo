@@ -1,6 +1,6 @@
 import type { TicketStatus } from '@ticketmanager/contracts';
 import { ticketChangedV1, ticketCreatedV1, ticketDeletedV1 } from '@ticketmanager/events';
-import { EmailDeliveryService } from '../email-delivery.service.js';
+import { EmailDeliveryService } from '../services/email-delivery.service.js';
 import {
   CapturingMailer,
   ImmediateUnitOfWork,

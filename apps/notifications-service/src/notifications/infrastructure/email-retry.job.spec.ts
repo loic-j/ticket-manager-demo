@@ -1,4 +1,4 @@
-import { EmailDeliveryService } from '../application/email-delivery.service.js';
+import { EmailDeliveryService } from '../application/services/email-delivery.service.js';
 import { createNotification } from '../domain/notification.js';
 import { loadNotificationsConfig } from '../notifications.config.js';
 import { EmailRetryJob } from './email-retry.job.js';

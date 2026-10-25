@@ -16,7 +16,10 @@ caller names files or a context folder, review those instead. Read `CLAUDE.md`,
 
 ## Checklist (report only real violations, with `path:line`)
 
-1. **Layer dependencies** inside `src/<context>/`:
+1. **Layout**: every folder under `src/` keeps modules/config at its root and code only in
+   `domain/`, `application/`, `infrastructure/`, `presentation/` (also `messaging`, `database`,
+   `health`). A class file directly at a folder root is a violation.
+   **Layer dependencies** inside `src/<context>/`:
    - `domain/` imports nothing from `@nestjs/*`, `express`, `../generated/prisma`, `@prisma/*`,
      or from `application/`, `infrastructure/`, `presentation/`.
    - `application/` imports only `domain/`, `@ticketmanager/contracts`, `@nestjs/common`

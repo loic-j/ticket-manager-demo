@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '../src/database/prisma.service.js';
+import { PrismaService } from '../src/database/infrastructure/prisma.service.js';
 import { createTicket } from '../src/tickets/domain/ticket.js';
 import { PrismaTicketReadRepository } from '../src/tickets/infrastructure/prisma-ticket-read.repository.js';
 import { PrismaTicketRepository } from '../src/tickets/infrastructure/prisma-ticket.repository.js';

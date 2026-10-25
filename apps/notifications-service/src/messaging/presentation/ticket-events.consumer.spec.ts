@@ -1,7 +1,7 @@
 import type { CommandBus } from '@nestjs/cqrs';
 import { ticketCreatedV1 } from '@ticketmanager/events';
 import type { ConsumeMessage } from 'amqplib';
-import { loadConsumerConfig } from './messaging.config.js';
+import { loadConsumerConfig } from '../messaging.config.js';
 import { TicketEventsConsumer } from './ticket-events.consumer.js';
 
 function message(body: unknown, headers: Record<string, unknown> = {}): ConsumeMessage {

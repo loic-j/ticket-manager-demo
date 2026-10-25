@@ -1,10 +1,10 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { emailFailed, emailSent, type Notification } from '../domain/notification.js';
+import { emailFailed, emailSent, type Notification } from '../../domain/notification.js';
 import {
   NOTIFICATION_REPOSITORY,
   type NotificationRepository,
-} from '../domain/notification.repository.js';
-import { MAILER, USER_DIRECTORY, type Mailer, type UserDirectory } from './ports/index.js';
+} from '../../domain/notification.repository.js';
+import { MAILER, USER_DIRECTORY, type Mailer, type UserDirectory } from '../ports/index.js';
 
 /**
  * Sends the email of a stored notification and records the outcome. Never throws: a failure

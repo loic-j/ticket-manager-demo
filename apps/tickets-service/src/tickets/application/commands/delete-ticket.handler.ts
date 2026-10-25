@@ -5,7 +5,7 @@ import {
   UNIT_OF_WORK,
   type Outbox,
   type UnitOfWork,
-} from '../../../messaging/ports/index.js';
+} from '../../../messaging/application/ports/index.js';
 import { TicketDeletedEvent } from '../../domain/events/ticket-events.js';
 import { TicketNotFoundError } from '../../domain/ticket-not-found.error.js';
 import { TICKET_REPOSITORY, type TicketRepository } from '../../domain/ticket.repository.js';

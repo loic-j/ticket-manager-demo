@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../database/prisma.service.js';
+import { PrismaService } from '../../database/infrastructure/prisma.service.js';
 import type { Prisma } from '../../generated/prisma/client.js';
-import type { Outbox, OutboxEvent } from '../ports/outbox.js';
+import type { Outbox, OutboxEvent } from '../application/ports/outbox.js';
 
 /** Writes outbox rows through the ambient transaction (`PrismaService.db`). */
 @Injectable()

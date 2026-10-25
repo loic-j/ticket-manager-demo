@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { CqrsModule } from '@nestjs/cqrs';
 import { NOTIFICATION_COMMAND_HANDLERS } from './application/commands/index.js';
-import { EmailDeliveryService } from './application/email-delivery.service.js';
+import { EmailDeliveryService } from './application/services/email-delivery.service.js';
 import {
   MAILER,
   NOTIFICATION_READ_REPOSITORY,

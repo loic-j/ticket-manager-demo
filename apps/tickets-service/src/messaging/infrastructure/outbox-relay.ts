@@ -6,9 +6,9 @@ import {
   type OnModuleInit,
 } from '@nestjs/common';
 import { parseEnvelope, type EventEnvelope } from '@ticketmanager/events';
-import { PrismaService } from '../../database/prisma.service.js';
+import { PrismaService } from '../../database/infrastructure/prisma.service.js';
 import { MESSAGING_CONFIG, type MessagingConfig } from '../messaging.config.js';
-import { EVENT_PUBLISHER, type EventPublisher } from '../ports/event-publisher.js';
+import { EVENT_PUBLISHER, type EventPublisher } from '../application/ports/event-publisher.js';
 
 const TRANSACTION_TIMEOUT_MS = 30_000;
 

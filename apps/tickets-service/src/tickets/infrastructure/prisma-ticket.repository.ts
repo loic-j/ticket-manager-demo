@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../database/prisma.service.js';
+import { PrismaService } from '../../database/infrastructure/prisma.service.js';
 import type { TicketRepository } from '../domain/ticket.repository.js';
 import type { Ticket } from '../domain/ticket.js';
 import { toTicket, toTicketRow } from './ticket-row.mapper.js';

@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
-import { EmailRetryJob } from './infrastructure/email-retry.job.js';
 import { NotificationsCoreModule } from './notifications-core.module.js';
+import { EmailRetryJob } from './presentation/email-retry.job.js';
 
 /** Email retry worker: only the email-retry process imports this module. */
 @Module({

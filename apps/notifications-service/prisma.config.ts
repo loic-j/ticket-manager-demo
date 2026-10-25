@@ -8,6 +8,8 @@ export default defineConfig({
   },
   datasource: {
     // Fallback lets `prisma generate` run without a database (e.g. in the Docker builder).
-    url: process.env.DATABASE_URL ?? 'postgresql://tickets:tickets@localhost:5433/tickets',
+    url:
+      process.env.DATABASE_URL ??
+      'postgresql://notifications:notifications@localhost:5434/notifications',
   },
 });

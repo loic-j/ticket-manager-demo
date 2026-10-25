@@ -12,14 +12,19 @@ export interface CacheOptions {
 
 const DEFAULT_NEGATIVE_TTL_MS = 60_000;
 
+type Lookup = Promise<DirectoryUser | null>;
+
 /**
  * In-memory cache in front of another directory. `findByIds` only asks the inner directory for
  * the ids it does not hold; ids the inner directory does not know are cached as `null` for a
- * short time so a page listing a deleted user does not hit Logto on every render. Eviction is
- * oldest-insertion-first once `maxSize` is reached.
+ * short time so a page listing a deleted user does not hit Logto on every render. Concurrent
+ * cold lookups of the same id share one inner call (a page rendering ten tickets of one author
+ * triggers one Logto request, not ten). Eviction is oldest-insertion-first once `maxSize` is
+ * reached. Failures are propagated and never cached.
  */
 export class CachingUserDirectory implements UserDirectory {
   private readonly entries = new Map<string, { user: DirectoryUser | null; expiresAt: number }>();
+  private readonly pending = new Map<string, Lookup>();
   private readonly now: () => number;
   private readonly negativeTtlMs: number;
 
@@ -37,22 +42,43 @@ export class CachingUserDirectory implements UserDirectory {
 
   async findByIds(ids: readonly string[]): Promise<DirectoryUser[]> {
     const resolved = new Map<string, DirectoryUser | null>();
+    const awaited: Promise<void>[] = [];
     const misses: string[] = [];
     for (const id of ids) {
       const cached = this.read(id);
-      if (cached === undefined) misses.push(id);
-      else resolved.set(id, cached);
-    }
-
-    if (misses.length > 0) {
-      const fetched = new Map((await this.inner.findByIds(misses)).map((u) => [u.id, u]));
-      for (const id of misses) {
-        const user = fetched.get(id) ?? null;
-        this.write(id, user);
-        resolved.set(id, user);
+      if (cached !== undefined) {
+        resolved.set(id, cached);
+        continue;
+      }
+      const inFlight = this.pending.get(id);
+      if (inFlight) {
+        awaited.push(inFlight.then((user) => void resolved.set(id, user)));
+      } else if (!misses.includes(id)) {
+        misses.push(id);
       }
     }
 
+    if (misses.length > 0) {
+      const batch = this.inner
+        .findByIds(misses)
+        .then((users) => new Map(users.map((user) => [user.id, user])));
+      for (const id of misses) {
+        const lookup: Lookup = batch.then((found) => found.get(id) ?? null);
+        this.pending.set(id, lookup);
+        awaited.push(
+          lookup
+            .then((user) => {
+              this.write(id, user);
+              resolved.set(id, user);
+            })
+            .finally(() => {
+              if (this.pending.get(id) === lookup) this.pending.delete(id);
+            }),
+        );
+      }
+    }
+
+    await Promise.all(awaited);
     return ids.flatMap((id) => {
       const user = resolved.get(id);
       return user ? [user] : [];

@@ -45,7 +45,8 @@ export class PrismaNotificationRepository implements NotificationRepository {
     limit: number;
     now: Date;
   }): Promise<Notification[]> {
-    // Claim-then-process: the stamp keeps other workers (and the next tick) away from these rows.
+    // Claim-then-process: the stamp keeps other workers (and the next tick) away from these rows;
+    // `FOR UPDATE SKIP LOCKED` makes concurrent claims pick disjoint rows instead of waiting.
     const rows = await this.prisma.db.$queryRaw<RawRow[]>`
       UPDATE notifications SET email_last_tried_at = ${options.now}
       WHERE id IN (

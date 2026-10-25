@@ -1,4 +1,3 @@
-import { Inject, Injectable } from '@nestjs/common';
 import {
   DIRECTORY_API_RESOURCE,
   DIRECTORY_READ_USERS_SCOPE,
@@ -6,18 +5,18 @@ import {
 } from '@ticketmanager/contracts';
 import { ServiceHttpClient, logtoClientCredentials } from '@ticketmanager/nest-common';
 import type { UserDirectory, UserProfile } from '../application/ports/user-directory.js';
-import { NOTIFICATIONS_CONFIG, type NotificationsConfig } from '../notifications.config.js';
+import type { NotificationsConfig } from '../notifications.config.js';
 
 /**
  * Resolves recipients through directory-service (`GET /users/:id`) with a machine-to-machine
  * token issued for the directory resource. Unknown user → `null`; any other failure throws so
- * `EmailDeliveryService` records the email as failed and `EmailRetryJob` tries again later.
+ * `EmailDeliveryService` records the email as failed and the retry worker tries again later.
+ * Built by the `USER_DIRECTORY` factory in `NotificationsCoreModule`, not by Nest's injector.
  */
-@Injectable()
 export class HttpUserDirectory implements UserDirectory {
   private readonly http: ServiceHttpClient;
 
-  constructor(@Inject(NOTIFICATIONS_CONFIG) config: NotificationsConfig) {
+  constructor(config: NotificationsConfig) {
     if (!config.m2m)
       throw new Error('HttpUserDirectory needs LOGTO_M2M_APP_ID / LOGTO_M2M_APP_SECRET');
     this.http = new ServiceHttpClient({

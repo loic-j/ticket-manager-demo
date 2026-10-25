@@ -1,6 +1,38 @@
+import type { DirectoryUser } from '@ticketmanager/contracts';
 import { describe, expect, it } from 'vitest';
+import type { UserDirectory } from '../application/ports/user-directory.js';
 import { CachingUserDirectory } from './caching-user-directory.js';
 import { StaticUserDirectory, user } from './testing.js';
+
+/** Inner directory whose batches complete only when the test releases them. */
+class DeferredUserDirectory implements UserDirectory {
+  readonly lookups: string[][] = [];
+  private readonly releases: (() => void)[] = [];
+
+  async findById(id: string): Promise<DirectoryUser | null> {
+    return (await this.findByIds([id]))[0] ?? null;
+  }
+
+  findByIds(ids: readonly string[]): Promise<DirectoryUser[]> {
+    this.lookups.push([...ids]);
+    return new Promise((resolve, reject) => {
+      this.releases.push(() => resolve(ids.filter((id) => id !== 'ghost').map((id) => user(id))));
+      this.failures.push(reject);
+    });
+  }
+
+  private readonly failures: ((error: Error) => void)[] = [];
+
+  release(): void {
+    this.releases.shift()!();
+    this.failures.shift();
+  }
+
+  fail(error: Error): void {
+    this.releases.shift();
+    this.failures.shift()!(error);
+  }
+}
 
 function setup(maxSize = 10) {
   let clock = 0;
@@ -65,5 +97,37 @@ describe('CachingUserDirectory', () => {
     await expect(cache.findById('u1')).rejects.toThrow('down');
     inner.failWith = undefined;
     expect(await cache.findById('u1')).toEqual(user('u1'));
+  });
+
+  it('shares one inner lookup between concurrent cold calls for the same id', async () => {
+    const inner = new DeferredUserDirectory();
+    const cache = new CachingUserDirectory(inner, { ttlMs: 1000, maxSize: 10 });
+
+    const first = cache.findById('u1');
+    const second = cache.findByIds(['u1', 'u2']);
+    expect(inner.lookups).toEqual([['u1'], ['u2']]); // u1 is already in flight
+    inner.release();
+    inner.release();
+
+    expect(await first).toEqual(user('u1'));
+    expect(await second).toEqual([user('u1'), user('u2')]);
+    expect(await cache.findByIds(['u1', 'u2'])).toEqual([user('u1'), user('u2')]);
+    expect(inner.lookups).toHaveLength(2);
+  });
+
+  it('propagates a shared failure to every waiter and retries afterwards', async () => {
+    const inner = new DeferredUserDirectory();
+    const cache = new CachingUserDirectory(inner, { ttlMs: 1000, maxSize: 10 });
+
+    const first = cache.findById('u1');
+    const second = cache.findById('u1');
+    inner.fail(new Error('down'));
+    await expect(first).rejects.toThrow('down');
+    await expect(second).rejects.toThrow('down');
+
+    const third = cache.findById('u1');
+    expect(inner.lookups).toEqual([['u1'], ['u1']]);
+    inner.release();
+    expect(await third).toEqual(user('u1'));
   });
 });

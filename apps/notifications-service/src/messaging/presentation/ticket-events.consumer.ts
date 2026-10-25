@@ -12,7 +12,16 @@ import { HandleTicketEventCommand } from '../../notifications/application/comman
 import { CONSUMER_CONFIG, type ConsumerConfig } from '../messaging.config.js';
 
 const RECONNECT_DELAY_MS = 5_000;
-const MAX_RETRY_BACKOFF_MS = 10_000;
+/** Backoff before requeueing a failed message: 1 s, 2 s, 4 s... capped. */
+const RETRY_BACKOFF_BASE_MS = 1_000;
+const MAX_RETRY_BACKOFF_MS = 30_000;
+
+/** Thrown inside `connect()` when shutdown started while a step was awaiting. */
+class ConsumerStopping extends Error {
+  constructor() {
+    super('consumer stopping');
+  }
+}
 
 /** The subset of amqplib's Channel the consumer uses (also what the unit test fakes). */
 export type ConsumerChannel = Pick<Channel, 'ack' | 'nack'>;
@@ -20,9 +29,10 @@ export type ConsumerChannel = Pick<Channel, 'ack' | 'nack'>;
 /**
  * Consumes ticket events from a durable quorum queue bound to the events exchange.
  * - A message is acked once `HandleTicketEventCommand` returned (the notification is committed).
- * - A handler failure is nacked with requeue after a small backoff; the broker counts
- *   deliveries (`x-delivery-count`) and dead-letters the message to `<exchange>.dlx` after
- *   `x-delivery-limit` deliveries (queue `<queue>.dead`, kept for inspection/replay).
+ * - A handler failure is nacked with requeue after an exponential backoff (1 s doubling per
+ *   delivery, capped at 30 s); the broker counts deliveries (`x-delivery-count`) and dead-letters
+ *   the message to `<exchange>.dlx` after `x-delivery-limit` deliveries (queue `<queue>.dead`,
+ *   kept for inspection/replay).
  * - An unparsable message is dead-lettered immediately.
  * - Handlers may run concurrently (`prefetch`), so there is no ordering guarantee between
  *   notifications; each notification is independent.
@@ -65,28 +75,40 @@ export class TicketEventsConsumer implements OnModuleInit, OnModuleDestroy {
     let connection: ChannelModel | undefined;
     try {
       connection = await amqp.connect(this.config.rabbitmqUrl);
+      this.bailIfStopping();
       const current = connection;
       connection.on('error', (error: unknown) =>
         this.logger.warn(`Connection error: ${String(error)}`),
       );
       connection.on('close', () => this.lost(current));
       const channel = await connection.createChannel();
+      this.bailIfStopping();
       channel.on('error', (error: unknown) => this.logger.warn(`Channel error: ${String(error)}`));
       channel.on('close', () => this.lost(current));
       await this.declareTopology(channel);
+      this.bailIfStopping();
       await channel.prefetch(this.config.prefetch);
+      this.bailIfStopping();
       const { consumerTag } = await channel.consume(this.config.queue, (message) =>
         this.track(this.handle(channel, message)),
       );
+      this.bailIfStopping();
       this.connection = connection;
       this.channel = channel;
       this.consumerTag = consumerTag;
       this.logger.log(`Consuming ${this.config.queue} (${this.config.bindingKeys.join(', ')})`);
     } catch (error) {
+      // Shutdown while connecting: release what was opened and do not reconnect.
+      await closeQuietly(connection);
+      if (error instanceof ConsumerStopping) return;
       this.logger.warn(`Cannot start consuming: ${String(error)}`);
-      await connection?.close().catch(() => undefined);
       this.scheduleReconnect();
     }
+  }
+
+  /** `onModuleDestroy` may run while `connect()` awaits a step; every step checks afterwards. */
+  private bailIfStopping(): void {
+    if (this.stopping) throw new ConsumerStopping();
   }
 
   private async declareTopology(channel: Channel): Promise<void> {
@@ -138,7 +160,8 @@ export class TicketEventsConsumer implements OnModuleInit, OnModuleDestroy {
       this.logger.warn(
         `${envelope.type} ${envelope.id} failed (delivery ${deliveries}): ${String(error)}`,
       );
-      await new Promise((r) => setTimeout(r, Math.min(1000 * deliveries, MAX_RETRY_BACKOFF_MS)));
+      const backoff = Math.min(RETRY_BACKOFF_BASE_MS * 2 ** (deliveries - 1), MAX_RETRY_BACKOFF_MS);
+      await new Promise((r) => setTimeout(r, backoff));
       this.safe(() => channel.nack(message, false, true));
     }
   }
@@ -157,6 +180,9 @@ export class TicketEventsConsumer implements OnModuleInit, OnModuleDestroy {
     this.connection = undefined;
     this.channel = undefined;
     this.consumerTag = undefined;
+    // A channel can die while its connection survives: close the connection too, so the
+    // reconnect starts from scratch instead of leaking an idle connection per incident.
+    void closeQuietly(connection);
     this.scheduleReconnect();
   }
 
@@ -167,5 +193,14 @@ export class TicketEventsConsumer implements OnModuleInit, OnModuleDestroy {
       void this.connect();
     }, RECONNECT_DELAY_MS);
     this.reconnectTimer.unref();
+  }
+}
+
+/** Closing an already closed connection throws or rejects; neither matters here. */
+async function closeQuietly(connection: ChannelModel | undefined): Promise<void> {
+  try {
+    await connection?.close();
+  } catch {
+    // already closed
   }
 }

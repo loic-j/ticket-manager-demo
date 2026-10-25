@@ -5,17 +5,14 @@ import {
   type OnModuleDestroy,
   type OnModuleInit,
 } from '@nestjs/common';
-import { EmailDeliveryService } from '../application/services/email-delivery.service.js';
-import {
-  NOTIFICATION_REPOSITORY,
-  type NotificationRepository,
-} from '../domain/notification.repository.js';
+import { CommandBus } from '@nestjs/cqrs';
+import { RetryPendingEmailsCommand } from '../application/commands/index.js';
 import { NOTIFICATIONS_CONFIG, type NotificationsConfig } from '../notifications.config.js';
 
 /**
- * Periodically re-sends emails that are still `pending` (crash between commit and send) or
- * `failed` (directory or SMTP error), until `emailMaxAttempts`. Runs only in the email-retry
- * process (`main.email-retry.ts`). Workers can be scaled: each claims distinct rows.
+ * Inbound adapter of the email retry process (`main.email-retry.ts`): a timer dispatching
+ * `RetryPendingEmailsCommand` every `emailRetryIntervalMs`. Ticks never overlap: one that fires
+ * while a run is in flight joins it. Workers can be scaled, each run claims distinct rows.
  */
 @Injectable()
 export class EmailRetryJob implements OnModuleInit, OnModuleDestroy {
@@ -25,13 +22,12 @@ export class EmailRetryJob implements OnModuleInit, OnModuleDestroy {
 
   constructor(
     @Inject(NOTIFICATIONS_CONFIG) private readonly config: NotificationsConfig,
-    @Inject(NOTIFICATION_REPOSITORY) private readonly notifications: NotificationRepository,
-    private readonly emails: EmailDeliveryService,
+    private readonly commandBus: CommandBus,
   ) {}
 
   onModuleInit(): void {
+    // The timer keeps the (otherwise idle) worker process alive; `onModuleDestroy` clears it.
     this.timer = setInterval(() => void this.tick(), this.config.emailRetryIntervalMs);
-    this.timer.unref();
   }
 
   async onModuleDestroy(): Promise<void> {
@@ -50,19 +46,12 @@ export class EmailRetryJob implements OnModuleInit, OnModuleDestroy {
     return run;
   }
 
-  /** @returns the number of notifications retried. */
+  /** @returns the number of notifications retried; a failed run is logged and counts as 0. */
   async run(now = new Date()): Promise<number> {
     try {
-      const candidates = await this.notifications.claimEmailRetryCandidates({
-        maxAttempts: this.config.emailMaxAttempts,
-        notTriedSince: new Date(now.getTime() - this.config.emailRetryDelayMs),
-        limit: 50,
-        now,
-      });
-      for (const notification of candidates) {
-        await this.emails.deliver(notification);
-      }
-      return candidates.length;
+      return await this.commandBus.execute<RetryPendingEmailsCommand, number>(
+        new RetryPendingEmailsCommand(now),
+      );
     } catch (error) {
       this.logger.error(`Email retry run failed: ${String(error)}`);
       return 0;

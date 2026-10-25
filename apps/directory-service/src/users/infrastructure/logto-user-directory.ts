@@ -5,8 +5,6 @@ import { z } from 'zod';
 import type { UserDirectory } from '../application/ports/user-directory.js';
 import type { UsersConfig } from '../users.config.js';
 
-/** Resource indicator of the Management API on a self-hosted (single tenant) Logto. */
-const MANAGEMENT_API_RESOURCE = 'https://default.logto.app/api';
 /** Logto has no batch-by-id endpoint: `findByIds` fans out, at most this many calls in flight. */
 const LOOKUP_CONCURRENCY = 8;
 
@@ -36,13 +34,14 @@ export class LogtoUserDirectory implements UserDirectory {
             endpoint: config.logtoEndpoint,
             appId: config.m2m.appId,
             appSecret: config.m2m.appSecret,
-            resource: MANAGEMENT_API_RESOURCE,
-            scope: 'all',
+            resource: config.managementApi.resource,
+            scope: config.managementApi.scope,
           }),
         })
       : null;
   }
 
+  /** Strict: a Logto failure throws (`GET /users/:id` answers 500, a 404 only for unknown ids). */
   async findById(id: string): Promise<DirectoryUser | null> {
     if (!this.http) {
       this.warnOnce();
@@ -62,13 +61,24 @@ export class LogtoUserDirectory implements UserDirectory {
     });
   }
 
+  /**
+   * Best-effort: every id is looked up on its own and a failure (429, 5xx, timeout) only drops
+   * that id from the answer, logged at warn, so one bad call never fails a whole page of users.
+   * The cache in front then holds the missing id as unknown for its short negative TTL, which
+   * bounds the retry pressure on Logto.
+   */
   async findByIds(ids: readonly string[]): Promise<DirectoryUser[]> {
     const results: (DirectoryUser | null)[] = Array.from({ length: ids.length }, () => null);
     let next = 0;
     const worker = async () => {
       while (next < ids.length) {
         const index = next++;
-        results[index] = await this.findById(ids[index]!);
+        const id = ids[index]!;
+        try {
+          results[index] = await this.findById(id);
+        } catch (error) {
+          this.logger.warn(`Lookup of user ${id} failed, omitted from the batch: ${String(error)}`);
+        }
       }
     };
     await Promise.all(

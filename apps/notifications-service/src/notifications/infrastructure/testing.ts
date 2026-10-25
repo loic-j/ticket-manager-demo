@@ -91,7 +91,8 @@ export class ImmediateUnitOfWork implements UnitOfWork {
   }
 }
 
-export class StaticUserDirectory implements UserDirectory {
+/** Fixed recipient profiles keyed by user id (the shape `EmailDeliveryService` needs). */
+export class StaticUserProfiles implements UserDirectory {
   failWith?: Error;
 
   constructor(private readonly users: Record<string, UserProfile> = {}) {}

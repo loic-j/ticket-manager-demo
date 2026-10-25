@@ -1,8 +1,8 @@
 import { StandardSchemaValidationPipe, type INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { NOTIFICATIONS_API_RESOURCE } from '@ticketmanager/contracts';
-import { JwtVerifier, loadAuthConfig, toAuthUser } from '@ticketmanager/nest-common';
-import { generateKeyPair, jwtVerify, SignJWT, type CryptoKey } from 'jose';
+import { JwtVerifier } from '@ticketmanager/nest-common';
+import { LocalTokenIssuer, type TokenOptions } from '@ticketmanager/nest-common/testing';
 import type { App } from 'supertest/types.js';
 import { AppModule } from '../../src/app.module.js';
 import { PrismaService } from '../../src/database/infrastructure/prisma.service.js';
@@ -22,67 +22,45 @@ import {
   InMemoryNotificationRepository,
   InMemoryProcessedEvents,
   InMemoryTicketVersions,
-  StaticUserDirectory,
+  StaticUserProfiles,
 } from '../../src/notifications/infrastructure/testing.js';
 
-const ALG = 'ES256';
-
-export interface TokenOptions {
-  sub?: string;
-  audience?: string;
-  issuer?: string;
-  expiresIn?: string;
-}
+export type { TokenOptions };
 
 /** Local stand-in for Logto plus in-memory ports: e2e tests need no infrastructure at all. */
 export class TestAuth {
   readonly notifications = new InMemoryNotificationRepository();
   readonly mailer = new CapturingMailer();
 
-  private constructor(
-    private readonly privateKey: CryptoKey,
-    private readonly publicKey: CryptoKey,
-    readonly issuer: string,
-    readonly audience: string,
-  ) {}
+  private constructor(private readonly tokens: LocalTokenIssuer) {}
 
   static async create(): Promise<TestAuth> {
-    const { issuer, audience } = loadAuthConfig({ defaultAudience: NOTIFICATIONS_API_RESOURCE });
-    const { privateKey, publicKey } = await generateKeyPair(ALG);
-    return new TestAuth(privateKey, publicKey, issuer, audience);
+    return new TestAuth(
+      await LocalTokenIssuer.create({ defaultAudience: NOTIFICATIONS_API_RESOURCE }),
+    );
   }
 
-  token(options: TokenOptions = {}): Promise<string> {
-    return new SignJWT({ scope: '' })
-      .setProtectedHeader({ alg: ALG })
-      .setIssuer(options.issuer ?? this.issuer)
-      .setAudience(options.audience ?? this.audience)
-      .setSubject(options.sub ?? 'user_test')
-      .setIssuedAt()
-      .setExpirationTime(options.expiresIn ?? '5m')
-      .sign(this.privateKey);
+  get issuer(): string {
+    return this.tokens.issuer;
   }
 
-  async bearer(options?: TokenOptions): Promise<string> {
-    return `Bearer ${await this.token(options)}`;
+  get audience(): string {
+    return this.tokens.audience;
   }
 
-  get verifier(): Pick<JwtVerifier, 'verify'> {
-    return {
-      verify: async (token) => {
-        const { payload } = await jwtVerify(token, this.publicKey, {
-          issuer: this.issuer,
-          audience: this.audience,
-        });
-        return toAuthUser(payload);
-      },
-    };
+  token(options?: TokenOptions): Promise<string> {
+    return this.tokens.token(options);
   }
 
+  bearer(options?: TokenOptions): Promise<string> {
+    return this.tokens.bearer(options);
+  }
+
+  /** Boots the full `AppModule` with the global pipe from `main.ts`: no Logto, database or broker. */
   async createApp(): Promise<INestApplication<App>> {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(JwtVerifier)
-      .useValue(this.verifier)
+      .useValue(this.tokens.verifier)
       .overrideProvider(NOTIFICATION_REPOSITORY)
       .useValue(this.notifications)
       .overrideProvider(NOTIFICATION_READ_REPOSITORY)
@@ -94,7 +72,7 @@ export class TestAuth {
       .overrideProvider(UNIT_OF_WORK)
       .useValue(new ImmediateUnitOfWork())
       .overrideProvider(USER_DIRECTORY)
-      .useValue(new StaticUserDirectory({ user_test: { email: 'test@example.com', name: null } }))
+      .useValue(new StaticUserProfiles({ user_test: { email: 'test@example.com', name: null } }))
       .overrideProvider(MAILER)
       .useValue(this.mailer)
       .overrideProvider(TicketEventsConsumer)

@@ -14,9 +14,12 @@ export interface NotificationRepository {
   markRead(id: string, at: Date): Promise<void>;
   /**
    * Reserves notifications whose email is not `sent`, tried fewer than `maxAttempts` times and
-   * not tried since `notTriedSince` (or never), oldest first, by stamping `emailLastTriedAt`.
-   * Concurrent workers never get the same rows (`FOR UPDATE SKIP LOCKED`), and a reserved row
-   * is not offered again before the retry delay elapses.
+   * neither created nor tried since `notTriedSince`, oldest first, by stamping `emailLastTriedAt`.
+   * The `createdAt < notTriedSince` condition matters: a fresh row is `pending` while the
+   * consumer sends its first email right after the commit, and must not be claimed by a worker
+   * during that window (`EMAIL_RETRY_DELAY_MS` is therefore bounded below in the config).
+   * Concurrent workers never get the same rows, and a reserved row is not offered again before
+   * the retry delay elapses.
    */
   claimEmailRetryCandidates(options: {
     maxAttempts: number;

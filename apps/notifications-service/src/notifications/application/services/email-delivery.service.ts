@@ -1,5 +1,10 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { emailFailed, emailSent, type Notification } from '../../domain/notification.js';
+import {
+  emailFailed,
+  emailSent,
+  type EmailDelivery,
+  type Notification,
+} from '../../domain/notification.js';
 import {
   NOTIFICATION_REPOSITORY,
   type NotificationRepository,
@@ -8,8 +13,10 @@ import { MAILER, USER_DIRECTORY, type Mailer, type UserDirectory } from '../port
 
 /**
  * Sends the email of a stored notification and records the outcome. Never throws: a failure
- * (directory down, no address, SMTP error) is written to the row and retried later by
- * `EmailRetryJob`, so the broker message can be acked once the notification is persisted.
+ * (directory down, no address, SMTP error) is written to the row and retried later by the email
+ * retry worker, so the broker message can be acked once the notification is persisted.
+ * Delivery is at-least-once: when `updateEmail` fails after a successful send, the row stays
+ * `pending`/`failed` and the worker may send the same email again.
  */
 @Injectable()
 export class EmailDeliveryService {
@@ -23,7 +30,7 @@ export class EmailDeliveryService {
 
   async deliver(notification: Notification): Promise<'sent' | 'failed'> {
     let outcome: 'sent' | 'failed';
-    let delivery;
+    let delivery: EmailDelivery;
     try {
       const profile = await this.users.findById(notification.userId);
       if (!profile?.email) {
@@ -47,7 +54,8 @@ export class EmailDeliveryService {
     try {
       await this.notifications.updateEmail(notification.id, delivery);
     } catch (error) {
-      // The row keeps its previous status and the retry job will pick it up again.
+      // The row keeps its previous status and the retry worker picks it up again (possibly
+      // re-sending an email that did go out: at-least-once).
       this.logger.error(`Could not record email status of ${notification.id}: ${String(error)}`);
     }
     return outcome;

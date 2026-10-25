@@ -7,13 +7,12 @@ import {
   InMemoryNotificationRepository,
   InMemoryProcessedEvents,
   InMemoryTicketVersions,
-  StaticUserDirectory,
+  StaticUserProfiles,
 } from '../../infrastructure/testing.js';
 import { HandleTicketEventCommand } from './handle-ticket-event.command.js';
 import { HandleTicketEventHandler } from './handle-ticket-event.handler.js';
 import { MarkNotificationReadCommand } from './mark-notification-read.command.js';
 import { MarkNotificationReadHandler } from './mark-notification-read.handler.js';
-import { notificationFor } from './ticket-event-notifications.js';
 
 const ticket = {
   id: '2f6a3c4e-5b1d-4e8a-9c7f-1a2b3c4d5e6f',
@@ -38,20 +37,24 @@ const retitled = (version: number, title: string) =>
     ticket: { ...ticket, version, title },
     changes: { title: { from: ticket.title, to: title } },
   });
+const deleted = (version: number) =>
+  ticketDeletedV1.create({ ticketId: ticket.id, version, deletedBy: 'u1' });
 
-function setup(users: StaticUserDirectory) {
+function setup(users: StaticUserProfiles) {
   const repo = new InMemoryNotificationRepository();
   const mailer = new CapturingMailer();
+  const processed = new InMemoryProcessedEvents();
+  const versions = new InMemoryTicketVersions();
   const handler = new HandleTicketEventHandler(
     repo,
-    new InMemoryProcessedEvents(),
-    new InMemoryTicketVersions(),
+    processed,
+    versions,
     new ImmediateUnitOfWork(),
     new EmailDeliveryService(repo, users, mailer),
   );
-  return { repo, mailer, handler };
+  return { repo, mailer, processed, versions, handler };
 }
-const knownUser = () => new StaticUserDirectory({ u1: { email: 'u1@example.com', name: 'Una' } });
+const knownUser = () => new StaticUserProfiles({ u1: { email: 'u1@example.com', name: 'Una' } });
 
 describe('HandleTicketEventHandler', () => {
   it('stores a notification for the creator and emails them', async () => {
@@ -93,23 +96,44 @@ describe('HandleTicketEventHandler', () => {
     expect([...repo.rows.values()].map((n) => n.kind)).toEqual(['ticket_status_changed']);
   });
 
-  it('ignores events that produce no notification', async () => {
-    const { repo, handler } = setup(knownUser());
-    expect(
-      await handler.execute(
-        new HandleTicketEventCommand(
-          ticketDeletedV1.create({ ticketId: ticket.id, version: 2, deletedBy: 'u1' }),
-        ),
-      ),
-    ).toBe('ignored');
+  it('ignores events that produce no notification but still records their version', async () => {
+    const { repo, handler, processed, versions } = setup(knownUser());
     expect(await handler.execute(new HandleTicketEventCommand(retitled(2, 'Printer OK')))).toBe(
       'ignored',
+    );
+    expect(versions.versions.get(ticket.id)).toBe(2);
+    expect(processed.ids.size).toBe(1);
+    expect(await handler.execute(new HandleTicketEventCommand(deleted(3)))).toBe('ignored');
+    expect(versions.versions.get(ticket.id)).toBe(3);
+    expect(repo.rows.size).toBe(0);
+  });
+
+  it('treats a status change older than a deletion as stale', async () => {
+    const { repo, handler } = setup(knownUser());
+    expect(await handler.execute(new HandleTicketEventCommand(deleted(3)))).toBe('ignored');
+    expect(await handler.execute(new HandleTicketEventCommand(changed(2, 'resolved')))).toBe(
+      'stale',
     );
     expect(repo.rows.size).toBe(0);
   });
 
+  it('ignores an unknown event type without touching the inbox', async () => {
+    const { handler, processed } = setup(knownUser());
+    const envelope = { ...created(), type: 'ticket.archived' };
+    expect(await handler.execute(new HandleTicketEventCommand(envelope))).toBe('ignored');
+    expect(processed.ids.size).toBe(0);
+  });
+
+  it('ignores a known event type with an invalid payload without claiming it', async () => {
+    const { handler, processed, versions } = setup(knownUser());
+    const envelope = { ...created(), payload: { ticket: { ...ticket, status: 'on-fire' } } };
+    expect(await handler.execute(new HandleTicketEventCommand(envelope))).toBe('ignored');
+    expect(processed.ids.size).toBe(0);
+    expect(versions.versions.size).toBe(0);
+  });
+
   it('keeps the notification as failed when the recipient has no email', async () => {
-    const { repo, mailer, handler } = setup(new StaticUserDirectory({}));
+    const { repo, mailer, handler } = setup(new StaticUserProfiles({}));
     await handler.execute(new HandleTicketEventCommand(created()));
     expect([...repo.rows.values()][0]).toMatchObject({
       email: 'failed',
@@ -135,21 +159,6 @@ describe('HandleTicketEventHandler', () => {
     mailer.failWith = new Error('smtp down');
     await handler.execute(new HandleTicketEventCommand(created()));
     expect([...repo.rows.values()][0]).toMatchObject({ email: 'failed', emailError: 'smtp down' });
-  });
-});
-
-describe('notificationFor', () => {
-  it('describes a status change for the creator', () => {
-    expect(notificationFor(changed(2, 'in_progress'))).toMatchObject({
-      userId: 'u1',
-      kind: 'ticket_status_changed',
-      title: 'Ticket in progress: Printer on fire',
-      body: 'Your ticket "Printer on fire" moved from open to in_progress.',
-    });
-  });
-
-  it('ignores edits that do not touch the status', () => {
-    expect(notificationFor(retitled(2, 'Printer OK'))).toBeNull();
   });
 });
 

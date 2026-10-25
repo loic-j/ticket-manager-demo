@@ -4,6 +4,7 @@ import { CqrsModule } from '@nestjs/cqrs';
 import { NOTIFICATION_COMMAND_HANDLERS } from './application/commands/index.js';
 import { EmailDeliveryService } from './application/services/email-delivery.service.js';
 import {
+  EMAIL_RETRY_POLICY,
   MAILER,
   NOTIFICATION_READ_REPOSITORY,
   PROCESSED_EVENTS,
@@ -43,6 +44,14 @@ import {
       provide: NOTIFICATIONS_CONFIG,
       useFactory: (config: ConfigService) => loadNotificationsConfig(config),
       inject: [ConfigService],
+    },
+    {
+      provide: EMAIL_RETRY_POLICY,
+      useFactory: (config: NotificationsConfig) => ({
+        maxAttempts: config.emailMaxAttempts,
+        retryDelayMs: config.emailRetryDelayMs,
+      }),
+      inject: [NOTIFICATIONS_CONFIG],
     },
     { provide: NOTIFICATION_REPOSITORY, useClass: PrismaNotificationRepository },
     { provide: NOTIFICATION_READ_REPOSITORY, useClass: PrismaNotificationReadRepository },

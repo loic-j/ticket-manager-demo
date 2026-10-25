@@ -13,7 +13,7 @@ export type DbClient = Prisma.TransactionClient;
  *
  * `db` returns the transaction client of the ambient `runInTransaction()` call when there is
  * one, otherwise the root client; adapters must always go through it so that a unit of work can
- * span several adapters (aggregate + outbox) without passing a transaction object around.
+ * span several adapters (inbox + notification) without passing a transaction object around.
  */
 @Injectable()
 export class PrismaService implements OnModuleDestroy {

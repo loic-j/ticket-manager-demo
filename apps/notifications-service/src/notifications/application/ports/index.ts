@@ -4,3 +4,4 @@ export * from './processed-events.js';
 export * from './ticket-versions.js';
 export * from './unit-of-work.js';
 export * from './user-directory.js';
+export * from './email-retry-policy.js';

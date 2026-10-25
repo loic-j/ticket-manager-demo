@@ -60,13 +60,23 @@ describe('TicketEventsConsumer.handle', () => {
     expect(nacks).toEqual([]);
   });
 
-  it('requeues (after a backoff) when the command fails', async () => {
-    const pending = consumer(async () => {
+  it('requeues after an exponential backoff when the command fails', async () => {
+    const failing = consumer(async () => {
       throw new Error('db down');
-    }).handle(channel, message(event, { 'x-delivery-count': 2 }));
-    await vi.advanceTimersByTimeAsync(3000);
+    });
+    // Third delivery (two redeliveries already counted by the broker): 1 s * 2^2 = 4 s.
+    const pending = failing.handle(channel, message(event, { 'x-delivery-count': 2 }));
+    await vi.advanceTimersByTimeAsync(3999);
+    expect(nacks).toEqual([]);
+    await vi.advanceTimersByTimeAsync(1);
     await pending;
     expect(nacks).toEqual([{ requeue: true }]);
+
+    // The backoff is capped at 30 s however many deliveries happened.
+    const capped = failing.handle(channel, message(event, { 'x-delivery-count': 40 }));
+    await vi.advanceTimersByTimeAsync(30_000);
+    await capped;
+    expect(nacks).toEqual([{ requeue: true }, { requeue: true }]);
   });
 
   it('dead-letters an unparsable message immediately', async () => {

@@ -100,7 +100,7 @@ describe('LogtoUserDirectory', () => {
     });
   });
 
-  it('surfaces other HTTP errors', async () => {
+  it('surfaces other HTTP errors on a single lookup', async () => {
     vi.stubGlobal('fetch', async (url: string | URL) =>
       String(url).endsWith('/oidc/token')
         ? json(200, { access_token: 't', expires_in: 3600 })
@@ -109,5 +109,43 @@ describe('LogtoUserDirectory', () => {
     await expect(new LogtoUserDirectory(loadUsersConfig(m2mEnv)).findById('u1')).rejects.toThrow(
       '500',
     );
+  });
+
+  it('omits the ids whose lookup failed from a batch instead of failing it', async () => {
+    vi.stubGlobal('fetch', async (url: string | URL) => {
+      const u = String(url);
+      if (u.endsWith('/oidc/token')) return json(200, { access_token: 't', expires_in: 3600 });
+      const id = idOf(u);
+      if (id === 'throttled') return json(429, {});
+      if (id === 'broken') throw new Error('socket hang up');
+      return json(200, { id, name: null, primaryEmail: null, avatar: null });
+    });
+    const directory = new LogtoUserDirectory(loadUsersConfig(m2mEnv));
+
+    const users = await directory.findByIds(['u1', 'throttled', 'u2', 'broken']);
+
+    expect(users.map((u) => u.id)).toEqual(['u1', 'u2']);
+  });
+
+  it('targets the configured Management API resource and scope', async () => {
+    const bodies: Record<string, string>[] = [];
+    vi.stubGlobal('fetch', async (url: string | URL, init?: RequestInit) => {
+      if (String(url).endsWith('/oidc/token')) {
+        bodies.push(Object.fromEntries(init!.body as URLSearchParams));
+        return json(200, { access_token: 't', expires_in: 3600 });
+      }
+      return json(404, {});
+    });
+    const directory = new LogtoUserDirectory(
+      loadUsersConfig({
+        ...m2mEnv,
+        LOGTO_MANAGEMENT_API_RESOURCE: 'https://tenant.logto.app/api',
+        LOGTO_MANAGEMENT_API_SCOPE: 'all',
+      }),
+    );
+    expect(await directory.findById('ghost')).toBeNull();
+    expect(bodies).toEqual([
+      { grant_type: 'client_credentials', resource: 'https://tenant.logto.app/api', scope: 'all' },
+    ]);
   });
 });

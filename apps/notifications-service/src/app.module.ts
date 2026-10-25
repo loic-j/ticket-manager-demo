@@ -3,7 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { NOTIFICATIONS_API_RESOURCE } from '@ticketmanager/contracts';
 import { AuthModule } from '@ticketmanager/nest-common';
 import { DatabaseModule } from './database/database.module.js';
-import { HealthController } from './health/presentation/health.controller.js';
+import { HealthModule } from './health/health.module.js';
 import { MessagingModule } from './messaging/messaging.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
 
@@ -12,9 +12,9 @@ import { NotificationsModule } from './notifications/notifications.module.js';
     ConfigModule.forRoot({ isGlobal: true }),
     DatabaseModule,
     AuthModule.forRoot({ defaultAudience: NOTIFICATIONS_API_RESOURCE }),
+    HealthModule,
     NotificationsModule,
     MessagingModule,
   ],
-  controllers: [HealthController],
 })
 export class AppModule {}

@@ -38,7 +38,6 @@
     "@types/node": "catalog:",
     "@types/supertest": "^7.0.0",
     "concurrently": "^10.0.6",
-    "jose": "^6.2.13",
     "oxlint": "^1.58.0",
     "oxlint-tsgolint": "^7.0.2001",
     "supertest": "^7.0.0",

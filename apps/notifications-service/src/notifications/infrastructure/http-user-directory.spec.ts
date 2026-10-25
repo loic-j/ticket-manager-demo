@@ -80,9 +80,10 @@ describe('DevFallbackUserDirectory', () => {
     expect(await new DevFallbackUserDirectory(loadNotificationsConfig(env)).findById('u1')).toEqual(
       { email: 'dev@x.io', name: null },
     );
+    // In production the fallback address is ignored even when configured (M2M is mandatory there).
     expect(
       await new DevFallbackUserDirectory(
-        loadNotificationsConfig({ ...env, NODE_ENV: 'production' }),
+        loadNotificationsConfig({ ...env, ...m2mEnv, NODE_ENV: 'production' }),
       ).findById('u1'),
     ).toBeNull();
   });

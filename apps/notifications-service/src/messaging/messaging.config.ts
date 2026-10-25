@@ -1,4 +1,4 @@
-import type { ConfigService } from '@nestjs/config';
+import { readEnv, type EnvSource } from '@ticketmanager/nest-common';
 import { z } from 'zod';
 
 export const CONSUMER_CONFIG = Symbol('CONSUMER_CONFIG');
@@ -26,16 +26,8 @@ export interface ConsumerConfig {
   bindingKeys: string[];
 }
 
-type Env = Partial<Record<keyof z.input<typeof envSchema>, string | undefined>>;
-
-export function loadConsumerConfig(source: Pick<ConfigService, 'get'> | Env): ConsumerConfig {
-  const env: Env =
-    'get' in source && typeof source.get === 'function'
-      ? Object.fromEntries(
-          Object.keys(envSchema.shape).map((key) => [key, source.get<string>(key)]),
-        )
-      : (source as Env);
-  const e = envSchema.parse(env);
+export function loadConsumerConfig(source: EnvSource): ConsumerConfig {
+  const e = readEnv(envSchema, source);
   return {
     rabbitmqUrl: e.RABBITMQ_URL,
     exchange: e.EVENTS_EXCHANGE,

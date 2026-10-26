@@ -1,343 +1,136 @@
 # ticketmanager3
 
-pnpm + Turborepo monorepo: a Next.js BFF, NestJS microservices (tickets, notifications talking
-through RabbitMQ, a synchronous user directory) and shared typed contracts.
-The microservices roadmap lives in `docs/architecture/`.
+A small ticketing system built as a pnpm + Turborepo monorepo: a Next.js web app, three NestJS
+services (tickets, notifications, user directory) talking through RabbitMQ, and shared Zod
+contracts. Authentication is delegated to a self-hosted Logto.
 
 ```
 apps/
-  tickets-service/        NestJS 12: tickets API, CQRS, transactional outbox → http://localhost:3001
-  tickets-relay-service/  NestJS 12 (headless): publishes the tickets outbox to RabbitMQ, own image
-  notifications-service/  NestJS 12: consumes ticket events, emails, inbox API → http://localhost:3002
-  directory-service/      NestJS 12: user directory over the Logto Management API, no DB → http://localhost:3003
-  web/        Next.js 16 (App Router, Tailwind 4, ESLint) → http://localhost:3000
-infra/
-  docker-compose.yml         Logto + its PostgreSQL, one PostgreSQL per service, RabbitMQ, Valkey (tickets read cache), Mailpit (+ apps under profile "apps")
-  docker-compose.docker.yml  Override for the full-Docker mode (Logto exposed as host.docker.internal)
-packages/
-  contracts/          @ticketmanager/contracts — Zod schemas + inferred types (the HTTP contract)
-  events/             @ticketmanager/events — integration event envelope + versioned ticket events
-  nest-common/        @ticketmanager/nest-common — Logto auth guard, decorators, service-to-service HTTP client (M2M tokens)
-  outbox/             @ticketmanager/outbox — outbox relay (pg + RabbitMQ) and the outbox_messages table contract
-  typescript-config/  @ticketmanager/typescript-config — shared tsconfig presets
+  web/                    Next.js 16 front end (server-side calls only)        → http://localhost:3000
+  tickets-service/        tickets API, transactional outbox, Valkey read cache → http://localhost:3001
+  tickets-relay-service/  headless worker publishing the outbox to RabbitMQ
+  notifications-service/  consumes ticket events, sends emails, inbox API       → http://localhost:3002
+  directory-service/      user names/emails from Logto, no database            → http://localhost:3003
+packages/                 contracts (Zod schemas), events, nest-common (auth + HTTP client), outbox
+infra/                    docker-compose.yml (infrastructure) + compose/ (workers)
+docs/architecture/        overview.md (how it works) and the ADRs
 ```
 
 ## Requirements
 
-- Node 26 via nvm (`.nvmrc`); the code requires Node ≥ 22.12 (`engines`)
-- pnpm 12 (`corepack enable` or `npm i -g pnpm`)
+- Node 26 through nvm (`nvm use`, see `.nvmrc`)
+- pnpm 12 (`npm i -g pnpm`)
+- Docker Desktop (or any Docker with Compose v2)
 
-## Commands
+## First-time setup
 
-All commands run from the repo root and go through Turborepo, which builds dependencies first
-and caches results.
+1. **Install and start the infrastructure**
 
-| Command            | What it does                                                |
-| ------------------ | ----------------------------------------------------------- |
-| `pnpm install`     | Install everything                                          |
-| `pnpm dev`         | Build the packages, then run every app and package in watch |
-| `pnpm build`       | Build all packages                                          |
-| `pnpm check-types` | `tsc --noEmit` in every package                             |
-| `pnpm lint`        | oxlint (services, packages) + ESLint (web)                  |
-| `pnpm test`        | Vitest unit tests (services, packages)                      |
-| `pnpm test:e2e`    | Service e2e tests (supertest, no DB or broker)              |
-| `pnpm format`      | Prettier on the whole repo                                  |
+   ```bash
+   pnpm install
+   pnpm infra:up      # Logto + its PostgreSQL, tickets-db, notifications-db, RabbitMQ, Valkey, Mailpit
+   ```
 
-Day-to-day: `pnpm infra:up` once, then `pnpm dev`, which starts every process: the three HTTP
-services, the tickets relay (`apps/tickets-relay-service`), the notifications email-retry worker
-(second entry point of notifications-service) and the web app.
+   Wait until `curl localhost:3301/oidc/.well-known/openid-configuration` answers.
 
-Target a single package with a filter, e.g. `pnpm turbo run dev --filter=@ticketmanager/tickets-service`,
-or run its own scripts with `pnpm --filter @ticketmanager/web dev`.
+2. **Configure Logto** at http://localhost:3302 (create the admin account on first launch):
 
-Copy each `apps/*/.env.example` to `.env` (`.env.local` for the web app) to override ports / URLs.
+   | Where                                                 | What to create                                                                                                                                                                                                        |
+   | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | Applications → Traditional web → Next.js (App Router) | `ticketmanager-web`. Redirect URI `http://localhost:3000/callback`, post sign-out URI `http://localhost:3000` (no trailing slash). Copy the App ID and an App secret.                                                 |
+   | API resources                                         | Three resources, one per service: `https://api.ticketmanager.local`, `https://notifications.ticketmanager.local`, `https://directory.ticketmanager.local`. In the directory resource add the permission `read:users`. |
+   | Roles → Machine-to-machine                            | `directory-client` with the `read:users` permission.                                                                                                                                                                  |
+   | Applications → Machine-to-machine                     | `ticketmanager-services` with the roles **Logto Management API access** and `directory-client`. Copy its App ID and secret.                                                                                           |
+   | Users                                                 | A test user (or enable sign-up in _Sign-in experience_).                                                                                                                                                              |
 
-## How type sharing works
+   Optional, for email sign-up: **Connectors → Email → SMTP** with host `mailpit`, port `1025`,
+   no TLS; codes land in Mailpit (http://localhost:8025).
 
-1. Schemas live in `packages/contracts/src` and are written with Zod. Types are inferred from them
-   (`z.infer`, `z.input`, `z.output`), so there is exactly one definition per payload.
-2. The API validates requests with the same schemas through NestJS 12's Standard Schema support:
-   `@Body({ schema: createTicketSchema })`. A global `StandardSchemaValidationPipe` is registered
-   in `apps/tickets-service/src/main.ts`. No class-based DTOs or `class-validator` needed.
-3. The web app imports the inferred types and validates its forms server-side with the same
-   schemas (`safeParse` in the Server Actions, `src/lib/*-actions.ts`) before calling the API.
-4. `@ticketmanager/contracts` is a _compiled_ internal package: `tsc` emits `dist/` with `.js`,
-   `.d.ts` and declaration maps. Both apps consume the compiled output, so it works with the
-   NestJS `tsc` build, with Node at runtime, with Vitest and with Turbopack alike. Turborepo's
-   `dependsOn: ["^build"]` guarantees it is built before any dependent task, and `pnpm dev`
-   keeps it rebuilding with `tsc --watch`.
+3. **Create the env files** from their examples and fill in the Logto values:
 
-Adding a new domain: create `packages/contracts/src/<domain>/<name>.schema.ts`, re-export it from
-`packages/contracts/src/index.ts`, then import from `@ticketmanager/contracts` in both apps.
+   | File                                                             | Fill in                                                                                          |
+   | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+   | `apps/web/.env.local`                                            | `LOGTO_APP_ID`, `LOGTO_APP_SECRET`, `LOGTO_COOKIE_SECRET` (32+ chars, `openssl rand -base64 32`) |
+   | `apps/directory-service/.env`, `apps/notifications-service/.env` | `LOGTO_M2M_APP_ID`, `LOGTO_M2M_APP_SECRET`                                                       |
+   | `apps/tickets-service/.env`, `apps/tickets-relay-service/.env`   | nothing, the defaults match `pnpm infra:up`                                                      |
+   | `infra/.env`                                                     | the same web and M2M values, used only by the full-Docker mode                                   |
 
-## Authentication (Logto)
+   Without the M2M values everything still runs: user names show as raw ids and emails go to
+   `NOTIFICATIONS_DEV_FALLBACK_EMAIL`.
 
-Authentication is delegated to [Logto](https://logto.io) (open source, self-hosted), running in
-Docker with **its own PostgreSQL**, separate from the future tickets database.
+4. **Check** with `pnpm build && pnpm test && pnpm test:e2e` (no infrastructure needed for tests).
 
-```
-Browser ──► Next.js (:3000) ──OIDC──► Logto (:3301, console :3302)
-               │  encrypted session cookie (@logto/next)
-               └──► NestJS services (:3001 tickets, :3002 notifications, :3003 directory)
-                    with `Authorization: Bearer <access token>` issued for that service's resource
-                         └── each verifies the JWT (jose): JWKS signature, issuer, audience
-```
-
-The browser never calls the API directly: Next.js Server Components and Server Actions call it
-server-side with an access token issued per service: `https://api.ticketmanager.local`
-(`TICKETS_API_RESOURCE`), `https://notifications.ticketmanager.local` and
-`https://directory.ticketmanager.local` (constants in `@ticketmanager/contracts`). On the API
-side, a global guard (`@ticketmanager/nest-common`) requires a valid token on every route except
-those marked `@Public()`.
-The e2e tests replace the verifier with a local key pair: they run without Logto or Docker.
-
-### One-time setup
-
-1. Start the infrastructure: `pnpm infra:up` (Docker Desktop required). Wait until
-   `curl localhost:3301/oidc/.well-known/openid-configuration` responds.
-2. Open the console at `http://localhost:3302` and create the admin account (first launch).
-3. **Applications → Create application → Traditional web → Next.js (App Router)**, name
-   `ticketmanager-web`:
-   - Redirect URI: `http://localhost:3000/callback`
-   - Post sign-out redirect URI: `http://localhost:3000` (exactly `BASE_URL`, no trailing slash:
-     `@logto/next` redirects to `config.baseUrl` after sign-out and Logto requires an exact match)
-   - Copy the _App ID_ and an _App secret_.
-4. **API resources → Create API resource**, once per service: `ticketmanager-tickets-service`
-   (`https://api.ticketmanager.local`), `ticketmanager-notifications-service`
-   (`https://notifications.ticketmanager.local`) and `ticketmanager-directory-service`
-   (`https://directory.ticketmanager.local`). Without them Logto refuses to issue the API tokens
-   (`invalid_target`). The directory also needs the machine-to-machine setup described under
-   "directory-service" below; without it names are not resolved but everything else works.
-5. **Users → Add user**: create a test user (or enable sign-up under _Sign-in experience_).
-6. Create `apps/web/.env.local` from `apps/web/.env.example` with the App ID, the App secret and a
-   `LOGTO_COOKIE_SECRET` of 32+ characters (`openssl rand -base64 32`).
-7. `pnpm dev`, open `http://localhost:3000`, click _Sign in_.
-
-Stop with `pnpm infra:down` (data persists in the Docker volumes `logto-db-data`, `tickets-db-data`,
-`notifications-db-data` and `rabbitmq-data`).
-
-### Email sign-up (local)
-
-`pnpm infra:up` also starts [Mailpit](https://mailpit.axllent.org), a local SMTP server with a web
-inbox at `http://localhost:8025`. Logto sends its verification codes there, so users can register
-with an email address without any external mail provider. One-time console setup:
-
-1. **Connectors → Email and SMS → Set up email connector → SMTP**: host `mailpit`, port `1025`,
-   no TLS, any credentials, from `noreply@ticketmanager.local`. Use the `Send test email` button
-   and check the Mailpit inbox.
-2. **Sign-in experience → Sign-up and sign-in**: add _Email address_ to the sign-up identifiers
-   (keep _Username_ if you want both) and enable _Email address + password_ as a sign-in method.
-   Existing users without an email are asked to add one at their next sign-in.
-
-Next steps: `tickets:read` / `tickets:write` permissions on the API resource plus Logto roles
-(RBAC) with a `@RequireScopes()` decorator.
-
-## API architecture (clean architecture + CQRS)
-
-Each bounded context under `apps/tickets-service/src/` follows this layout:
-
-```
-tickets/
-  domain/             Ticket model + pure transitions returning domain events, TicketRepository
-                      (write port), domain events, domain errors. No NestJS, no HTTP, no Prisma.
-  application/
-    commands/         CreateTicket / UpdateTicket / DeleteTicket commands + handlers (write port only)
-    queries/          ListTickets / GetTicket queries + handlers (read port only, return API views)
-    ports/            TicketReadRepository (read side), TicketCache (read cache, evicted by commands)
-    mappers/          contract DTOs → domain inputs, domain → API views (the only conversion point)
-  infrastructure/     PrismaTicketRepository (write), PrismaTicketReadRepository (read) behind
-                      CachingTicketReadRepository (cache-aside), CacheStoreTicketCache,
-                      testing.ts (InMemoryTicketRepository, both ports, used by tests)
-  presentation/       HTTP controller dispatching to CommandBus / QueryBus, error filter
-  tickets.module.ts   Composition root: CqrsModule, handlers, port → adapter bindings
-```
-
-Every other folder under `src/` follows the same shape, including the cross-cutting ones:
-`messaging/` (`application/ports`, `infrastructure/` outbox write side; the relay is its own
-package and the consumer lives in notifications-service), `caching/` (`CACHE_STORE` port, Valkey
-adapter, see "Read cache" below), `database/infrastructure/prisma.service.ts`,
-`health/health.module.ts` + `presentation/`. Modules and config files sit at the folder root.
-
-Commands return ids; the controller reads the result back through a query. Domain transitions
-return `{ ticket, events }`; handlers persist the state and the matching integration events in
-one transaction (see "Events and outbox" below). Request validation happens at the boundary with the Zod
-schemas from `@ticketmanager/contracts`. To change the storage, add adapters in `infrastructure/`
-and rebind the ports in `tickets.module.ts`; nothing else moves.
-
-## Events and outbox (RabbitMQ)
-
-Services integrate asynchronously through RabbitMQ (`pnpm infra:up` starts it; management UI at
-`http://localhost:15672`, `ticketmanager` / `ticketmanager`). The contract is
-`packages/events`: an envelope (`id`, `type`, `version`, `occurredAt`, `actor`, `payload`) and
-versioned payload schemas built with `defineEvent`, e.g. `ticketCreatedV1`.
-
-tickets-service never publishes from a request. Command handlers run a **unit of work**
-(`UNIT_OF_WORK` port, Prisma transaction propagated through `AsyncLocalStorage`) that saves the
-aggregate and appends the integration events to the `outbox_messages` table (`OUTBOX` port).
-`OutboxRelay` (from `@ticketmanager/outbox`, plain `pg`, no ORM) runs in its own package, process
-and image, `apps/tickets-relay-service` (scalable with `--scale`), and polls that table
-(every `OUTBOX_RELAY_INTERVAL_MS`), reads a batch in `sequence` order with
-`FOR UPDATE SKIP LOCKED` (so several relays share the work without overlap), publishes it to the
-topic exchange `ticketmanager.events` (routing key = event type) with publisher confirms, and
-marks the rows. Delivery is at-least-once: consumers deduplicate on the envelope `id`. A broker outage only
-delays publication; failed batches keep their rows with `attempts` and `last_error`, unparsable
-rows are quarantined (`attempts` = `OUTBOX_MAX_ATTEMPTS`) and skipped. Every broker wait is bounded
-by `BROKER_TIMEOUT_MS`.
-
-### Ordering: versions, not delivery order
-
-Nothing in the pipeline guarantees delivery order (several relays, concurrent consumers,
-redeliveries). Instead every ticket carries an optimistic-concurrency `version` (1 at creation,
-+1 per change; a concurrent update is retried on the fresh state, then answered `409`), and
-every ticket event carries the **full state** with that version (`ticket.created`,
-`ticket.changed` with `changes` = `{ field: { from, to } }` per edited field, `ticket.deleted` with the superseding
-version). A consumer that keeps state per ticket records the last version it applied
-(`TICKET_VERSIONS.advance()` in notifications-service, inside the same transaction as its side
-effects) and ignores any event with a lower or equal version. A late or replayed event can
-therefore never overwrite a newer state, and no event has to wait for a missing predecessor.
-
-`src/messaging/infrastructure/testing.ts` provides in-memory doubles; e2e tests run without
-database or broker. `pnpm --filter @ticketmanager/tickets-service test:int` exercises the Prisma
-write side, `pnpm --filter @ticketmanager/outbox test:int` the relay, both against PostgreSQL
-and RabbitMQ.
-
-### notifications-service (consumer)
-
-`apps/notifications-service` binds the quorum queue `notifications.tickets` to `ticket.#`,
-acks a message only after `HandleTicketEventCommand` committed the notification, nacks with a
-backoff on failure, and lets the broker dead-letter after 5 deliveries to
-`ticketmanager.events.dlx` (queue `notifications.tickets.dead`). Emails are sent after the commit
-and retried by the email-retry worker process (`EMAIL_MAX_ATTEMPTS`; image
-`notifications-email-retry`, scalable: workers claim distinct rows with `FOR UPDATE SKIP LOCKED`),
-so a Logto or SMTP outage delays them instead of losing them. The handler is
-idempotent through an **inbox** table (`processed_events`, claimed in the same transaction as the
-notification row), so the at-least-once delivery never produces a second notification or email.
-`ticket.created` and `ticket.changed` (status edits) notify the ticket creator; the recipient's email is
-resolved through directory-service (synchronous `GET /users/:id` with a machine-to-machine token,
-or `NOTIFICATIONS_DEV_FALLBACK_EMAIL` locally when no M2M credentials are set) and sent over SMTP
-to Mailpit. The service also exposes `GET /notifications` and `POST /notifications/:id/read`,
-scoped to the caller, for the web inbox.
-
-### directory-service (synchronous user directory)
-
-`apps/directory-service` is the one service that is **called synchronously** (ADR 002): the
-callers need its answer to build their own. It is a read-only facade over the Logto Management
-API with an in-memory cache (10 min, 60 s for unknown ids, `DIRECTORY_CACHE_*`) and no database.
-`GET /users?ids=a,b` (up to 50 distinct ids, unknown ones omitted) and `GET /users/:id` return
-`{ id, name, email, avatar }`. The web app calls it once per ticket list to show "Created by …"
-and falls back to the raw id when it is unavailable; notifications-service calls it to resolve
-recipient emails and lets the email-retry worker try again when it is down. Outgoing calls share
-`ServiceHttpClient` + `logtoClientCredentials` from `@ticketmanager/nest-common` (cached
-`client_credentials` token, timeout, one retry on 401).
-
-Logto setup (once, Console):
-
-1. **API resources → Create** `https://directory.ticketmanager.local` (the web app requests tokens
-   for it; existing sessions must sign out and in again). In that resource, **Permissions →
-   Create** `read:users`.
-2. **Roles → Create role**, type _Machine-to-machine_, name `directory-client`, with the
-   `read:users` permission of the directory resource.
-3. **Applications → Create application → Machine-to-machine**, name `ticketmanager-services`,
-   and assign it two roles: _Logto Management API access_ (lets directory-service read users)
-   and `directory-client` (lets notifications-service call directory-service). Put its App ID /
-   secret in `apps/directory-service/.env`, `apps/notifications-service/.env` and `infra/.env`
-   (`LOGTO_M2M_APP_ID`, `LOGTO_M2M_APP_SECRET`). For least privilege, use two M2M apps with one
-   role each: the variable names are the same, only the values differ per service.
-
-The guard checks issuer and audience only, so both user tokens (web) and M2M tokens are accepted;
-enforcing `read:users` is left to the RBAC step mentioned above.
-
-## Database (Prisma + PostgreSQL)
-
-Tickets live in their own PostgreSQL (`tickets-db`, `localhost:5433`), separate from Logto's.
-Prisma 7 with the `pg` driver adapter; schema in `apps/tickets-service/prisma/schema.prisma`, migrations
-committed in `apps/tickets-service/prisma/migrations/`, config in `apps/tickets-service/prisma.config.ts`. The generated
-client (`apps/tickets-service/src/generated/`) is gitignored and produced by the `db:generate` Turbo task,
-which every build / check / test task depends on.
+## Run locally
 
 ```bash
-pnpm infra:up                                   # tickets-db (and Logto)
-pnpm --filter @ticketmanager/tickets-service db:migrate     # apply migrations locally (dev) / create one after editing the schema
-pnpm --filter @ticketmanager/tickets-service db:deploy      # apply committed migrations (CI / prod)
-pnpm --filter @ticketmanager/tickets-service db:studio      # browse the data
-pnpm --filter @ticketmanager/tickets-service test:int       # integration test of the Prisma adapter (needs the DB)
+pnpm infra:up      # once per session (or leave it running)
+pnpm dev           # every service, the two workers and the web app in watch mode
 ```
 
-`DATABASE_URL` is read from `apps/tickets-service/.env` (see `.env.example`). Unit and e2e tests never touch
-the database: the e2e helper swaps in `InMemoryTicketRepository`.
+Then open http://localhost:3000 and sign in. One package at a time:
+`pnpm turbo run dev --filter=@ticketmanager/tickets-service`.
 
-## Read cache (Valkey)
+| Tool                  | URL                                        | Credentials                       |
+| --------------------- | ------------------------------------------ | --------------------------------- |
+| Web app               | http://localhost:3000                      | your Logto user                   |
+| Logto console         | http://localhost:3302                      | admin account                     |
+| RabbitMQ management   | http://localhost:15672                     | `ticketmanager` / `ticketmanager` |
+| Mailpit (sent emails) | http://localhost:8025                      | none                              |
+| Service health        | http://localhost:3001/health, :3002, :3003 | none                              |
 
-tickets-service keeps its API views in [Valkey](https://valkey.io) (Redis-compatible, BSD; the
-`valkey` service of `pnpm infra:up`, `localhost:6379`), see ADR 003. Cache-aside on the read
-port: `GET /tickets` and `GET /tickets/:id` are served from the cache when present, otherwise
-read from PostgreSQL and cached for `CACHE_TTL_MS` (60 s). Every committed create, update or
-delete evicts the ticket entry and the list, so a change is visible on the next read. The cache
-is an optimisation only: when Valkey is down or slower than `CACHE_TIMEOUT_MS` (250 ms) the
-service logs one warning and reads the database; `CACHE_ENABLED=false` bypasses it. The client is
-node-redis (`redis`), the official client; a Redis 8 image works unchanged (`CACHE_URL`).
+Stop the infrastructure with `pnpm infra:down` (data stays in Docker volumes).
+
+## Run everything in Docker
 
 ```bash
-pnpm --filter @ticketmanager/tickets-service test:int       # also covers RedisCacheStore against Valkey
+pnpm docker:up     # builds the images and starts databases, Logto, migrations, services, workers, web
+pnpm docker:logs   # follow the application containers
+pnpm docker:down
 ```
 
-## Docker
+- Needs `infra/.env` (step 3). Containers and the browser reach Logto as
+  `http://host.docker.internal:3301`; the Logto app keeps `http://localhost:3000/callback`.
+- Each process is its own image (API, relay, email-retry worker, migrations run once). Services
+  start only when their dependencies pass their healthchecks and restart `unless-stopped`.
+- The local stack runs directory-service and notifications-service with `NODE_ENV=development`
+  so it works without the M2M app. A production deployment keeps `production`, which makes
+  `LOGTO_M2M_*` mandatory.
+- Back to host mode: `pnpm infra:up` recreates Logto with its `localhost` endpoints.
 
-Every Dockerfile builds from the repo root with `turbo prune`, so an image only contains its
-package and workspace dependencies. Each deployable process is its own image (a Dockerfile
-target, selected by `target:` in compose):
+## Everyday commands
 
-| Image                                     | Dockerfile target                            | Process                                  |
-| ----------------------------------------- | -------------------------------------------- | ---------------------------------------- |
-| `ticketmanager-tickets-service`           | `apps/tickets-service` → `runner`            | HTTP API (`dist/main.js`)                |
-| `ticketmanager-tickets-relay`             | `apps/tickets-relay-service` → `runner`      | outbox relay, no HTTP/ORM deps, scalable |
-| `ticketmanager-tickets-migrate`           | `apps/tickets-service` → `migrate`           | `prisma migrate deploy`, runs once       |
-| `ticketmanager-notifications-service`     | `apps/notifications-service` → `runner`      | HTTP API + RabbitMQ consumer             |
-| `ticketmanager-notifications-email-retry` | `apps/notifications-service` → `email-retry` | email retry worker, scalable             |
-| `ticketmanager-notifications-migrate`     | `apps/notifications-service` → `migrate`     | `prisma migrate deploy`, runs once       |
-| `ticketmanager-directory-service`         | `apps/directory-service` → `runner`          | HTTP API, no database                    |
-| `ticketmanager-web`                       | `apps/web`                                   | Next.js standalone                       |
+| Command                                                     | What it does                                                             |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `pnpm dev`                                                  | Everything in watch mode                                                 |
+| `pnpm build` / `check-types` / `lint` / `test` / `test:e2e` | The checks a change must pass (run all of them before calling it done)   |
+| `pnpm format`                                               | Prettier on the whole repo                                               |
+| `pnpm --filter @ticketmanager/<service> test:int`           | Database / Valkey / broker backed tests (needs `pnpm infra:up`)          |
+| `pnpm --filter @ticketmanager/<service> db:migrate`         | Create and apply a Prisma migration after editing `prisma/schema.prisma` |
+| `pnpm --filter @ticketmanager/tickets-service db:studio`    | Browse the tickets database                                              |
 
-The worker services are declared in `infra/compose/*.yml` and pulled into the main project with
-`include:`, so they share the network and `depends_on` while staying in their own file. The HTTP
-images contain no relay or retry timer at all. The tickets relay is a separate package so its image
-ships only the publishing dependencies; the email-retry worker shares notifications-service's
-package (it needs its adapters) and is separated at the module level (`EmailRetryModule` is only
-imported by the worker entry point).
-`pnpm build` is untouched; `pnpm docker:build` builds the images.
+## How it works, in short
 
-`pnpm docker:up` runs the whole stack (databases, Logto, migrations, api, web) in Docker:
+- **Contract first**: every HTTP payload is a Zod schema in `packages/contracts`; the services
+  validate with it, the web validates its forms with it.
+- **Auth**: the browser only talks to Next.js; Server Components and Server Actions call the
+  services with a Logto access token per service. Every service route requires a valid token.
+- **Events**: a command writes the ticket and its integration event in one transaction (outbox);
+  the relay publishes to RabbitMQ; notifications-service consumes idempotently and emails the
+  creator. Events carry the full state and a version, so order does not matter.
+- **Directory**: the only synchronous call between services, a read-only facade over Logto.
+- **Cache**: tickets reads go through Valkey (60 s, evicted after every change); a cache outage
+  only slows reads down.
 
-- The browser and the containers must reach Logto under **one** name, and a container cannot
-  resolve `localhost` to your machine. The override `infra/docker-compose.docker.yml` therefore
-  exposes Logto as `http://host.docker.internal:3301` (console `:3302`), a name Docker Desktop
-  resolves from the host (Windows/macOS hosts file) and from containers.
-- Secrets come from `infra/.env` (copy `infra/.env.example`): Compose interpolates the `${VAR}`
-  references of the compose files from the `.env` of its project directory (`infra/`), and each
-  container only receives the variables it declares. The `web` container needs the Logto app
-  credentials (same values as `apps/web/.env.local`, the stack refuses to start without them);
-  the app in Logto keeps `http://localhost:3000/callback`.
-- The local stack runs directory-service, notifications-service and the email-retry worker with
-  `NODE_ENV=development` (set in compose; the images default to `production`) so that it works
-  without a machine-to-machine app: the directory answers "unknown" and notifications fall back
-  to `NOTIFICATIONS_DEV_FALLBACK_EMAIL`. A production deployment keeps `NODE_ENV=production` and
-  must configure `LOGTO_M2M_APP_ID` / `LOGTO_M2M_APP_SECRET`.
-- Every HTTP service exposes a public `GET /health`; compose uses it as a healthcheck (busybox
-  `wget` from the Alpine images, Logto is probed on its OIDC discovery document), so `web` and the
-  consumers start only once their dependencies answer. Long-running services restart
-  `unless-stopped`; the migration containers run once.
-- Stop with `pnpm docker:down`. To go back to the host dev mode, run `pnpm infra:up` again: it
-  recreates Logto with its `localhost` endpoints.
+The full description is in [docs/architecture/overview.md](docs/architecture/overview.md); the
+decisions are in the ADRs next to it; the coding rules are in `CLAUDE.md`.
 
-Configuration is read at runtime from the environment (`TICKETS_API_URL`, `NOTIFICATIONS_API_URL`,
-`DIRECTORY_API_URL`, `BASE_URL`, `LOGTO_*`, `DATABASE_URL`), so the same images work in both modes. Nothing in the web app uses
-`NEXT_PUBLIC_*` variables: the browser never calls the API or holds a token.
+## Troubleshooting
 
-## Dependency versions
-
-Versions shared by several packages (TypeScript, Zod, Vitest, `@types/node`, Prettier) are
-pinned once in the `catalog:` section of `pnpm-workspace.yaml` and referenced as `"catalog:"`
-in each `package.json`. Bump them there.
-
-TypeScript is pinned to 6.x: NestJS 12 requires TS ≥ 6 and its CLI does not yet support the
-TypeScript 7 (Go) compiler.
+| Symptom                                              | Cause and fix                                                                                                                         |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Web shows `Logto requester error: [status=400]`      | A Logto API resource is missing, or your session predates it. Check the three resources, then sign out and in again.                  |
+| User names show as raw ids                           | directory-service cannot read Logto: the M2M app lacks the **Logto Management API access** role, or `LOGTO_M2M_*` is empty.           |
+| No email after creating a ticket                     | Check RabbitMQ (`notifications.tickets` must have a consumer), then Mailpit, then the `notifications` table (`email`, `email_error`). |
+| `invalid_grant` or 401 everywhere                    | Sign out and in again; if it persists, clear the cookies of `localhost:3000`.                                                         |
+| Relay logs `Publishing … failed, next attempt in …`  | RabbitMQ is down; rows stay in `outbox_messages` and are published when it is back.                                                   |
+| `Cache unavailable, reads fall back to the database` | Valkey is down; the API keeps working. `CACHE_ENABLED=false` disables the cache.                                                      |

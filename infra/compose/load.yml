@@ -1,0 +1,28 @@
+# Load tests (ADR 005): k6 runs from this container, on the compose network, so it reaches the
+# Grafana stack (results → Prometheus remote write) and the services, Dockerised
+# (TARGET=docker) or started on the host by `pnpm dev` (TARGET=host, through host.docker.internal).
+# Never started by `pnpm infra:up` (profile "load"); `pnpm load:<scenario>` runs it once.
+services:
+  k6:
+    image: grafana/k6:2.3.0
+    profiles: ['load']
+    working_dir: /scripts
+    volumes:
+      - ../../tools/load:/scripts:ro
+      - ../../tools/load/results:/results
+    env_file:
+      # Credentials of the ticketmanager-loadtest M2M app (see tools/load/.env.example).
+      - path: ../../tools/load/.env
+        required: false
+    environment:
+      K6_PROMETHEUS_RW_SERVER_URL: http://lgtm:9090/api/v1/write
+      K6_PROMETHEUS_RW_TREND_STATS: p(50),p(95),p(99),min,max,avg
+      K6_PROMETHEUS_RW_STALE_MARKERS: 'true'
+      # Logto is always a container: its issuer stays the one the services expect in both modes.
+      LOGTO_ENDPOINT: http://logto:3301
+      TARGET: ${LOAD_TARGET:-host}
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    depends_on:
+      lgtm:
+        condition: service_healthy

@@ -116,6 +116,28 @@ pnpm docker:down
 | `pnpm --filter @ticketmanager/<service> db:migrate`         | Create and apply a Prisma migration after editing `prisma/schema.prisma` |
 | `pnpm --filter @ticketmanager/tickets-service db:studio`    | Browse the tickets database                                              |
 
+## Load tests (k6)
+
+One-time Logto setup: on the **tickets** and **notifications** API resources create the permission
+`load:test`; create the machine-to-machine role `load-tester` with both permissions; create the
+M2M app `ticketmanager-loadtest` with that role; copy `tools/load/.env.example` to
+`tools/load/.env` with its App ID and secret.
+
+| Command            | What it does                                                                    |
+| ------------------ | ------------------------------------------------------------------------------- |
+| `pnpm load:smoke`  | 1 VU, 30 s, every endpoint, strict thresholds: the gate after a change          |
+| `pnpm load:read`   | 50 VUs reading 200 seeded tickets (cache)                                       |
+| `pnpm load:write`  | 10 → 30 creations/s followed until their notification exists (whole pipeline)   |
+| `pnpm load:stress` | 5 → 200 req/s mixed, exploratory                                                |
+| `pnpm load:web`    | anonymous home page, no credentials needed                                      |
+| `pnpm load:clean`  | removes what the tests left in the databases (`-- --mail` also empties Mailpit) |
+
+k6 runs in Docker against `pnpm dev` (default) or the Docker stack (`LOAD_TARGET=docker`).
+Results: console summary, `tools/load/results/`, and the Grafana dashboard
+**Ticket Manager · k6 load tests** (filter by the `testid` printed at start). Scenarios delete
+the tickets they create; run `pnpm load:clean` after an aborted run or to drop the notification
+rows. Details in `tools/load/README.md` and ADR 005.
+
 ## How it works, in short
 
 - **Contract first**: every HTTP payload is a Zod schema in `packages/contracts`; the services

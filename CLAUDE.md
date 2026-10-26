@@ -132,6 +132,9 @@ every edited file through a hook; do not hand-format.
 - Use the `add-domain-module` skill to scaffold a new bounded context in the API.
 - Plans and design documents go to `docs/`. Architecture explanations go to
   `docs/architecture/overview.md` (and a new ADR for a decision), never to the README.
+- **Load tests** live in `tools/load` (k6, ADR 005): a new endpoint gets a step in
+  `scenarios/smoke.ts`; thresholds are the performance contract, change them knowingly; a new
+  scenario gets a `pnpm load:<name>` script and a README row.
 - **README**: part of the definition of done. After every change, re-read `README.md` and fix
   whatever it makes wrong or incomplete (a command, a port, an env variable, a Logto step, a
   container, a troubleshooting entry). It stays short and easy to follow: only what is needed to

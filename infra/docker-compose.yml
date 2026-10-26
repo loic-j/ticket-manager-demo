@@ -18,6 +18,7 @@ include:
   - compose/tickets-relay.yml
   - compose/notifications-email-retry.yml
   - compose/observability.yml
+  - compose/load.yml
 
 services:
   logto:

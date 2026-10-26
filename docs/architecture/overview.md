@@ -226,6 +226,17 @@ docker containers (RabbitMQ, PostgreSQL, Valkey, Logto…) ──Alloy──► 
   in `infra/observability/alloy.alloy`, dashboards in `infra/observability/dashboards/`
   (provisioned, editable in Grafana, export the JSON back to the repo to keep a change).
 
+## Load tests (k6)
+
+See ADR 005. `tools/load/` holds k6 scenarios in TypeScript (run by the `grafana/k6` image through
+`infra/compose/load.yml`, profile `load`, never started by `pnpm infra:up`). Authentication uses a
+dedicated Logto M2M app (`client_credentials`, one token per resource, fetched in `setup()`).
+`smoke` gates a change (every endpoint, strict thresholds); `read` loads the cache; `write` drives
+the asynchronous pipeline and measures the time from `POST /tickets` to the notification being
+listed (`notification_e2e_ms`); `stress` looks for the knee. Results go to Prometheus (remote
+write, tag `testid`) and the "k6 load tests" dashboard; every request carries `traceparent` so a
+slow request opens in Tempo. `tools/load/clean.sh` removes the rows the tests leave behind.
+
 ## Docker
 
 Every Dockerfile builds from the repo root with `turbo prune`, so an image only contains its

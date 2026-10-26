@@ -12,7 +12,7 @@ apps/
   notifications-service/  consumes ticket events, sends emails, inbox API       → http://localhost:3002
   directory-service/      user names/emails from Logto, no database            → http://localhost:3003
 packages/                 contracts (Zod schemas), events, nest-common (auth + HTTP client), outbox
-infra/                    docker-compose.yml (infrastructure) + compose/ (workers)
+infra/                    docker-compose.yml (infrastructure) + compose/ (workers, observability) + observability/ (Alloy, dashboards)
 docs/architecture/        overview.md (how it works) and the ADRs
 ```
 
@@ -28,7 +28,7 @@ docs/architecture/        overview.md (how it works) and the ADRs
 
    ```bash
    pnpm install
-   pnpm infra:up      # Logto + its PostgreSQL, tickets-db, notifications-db, RabbitMQ, Valkey, Mailpit
+   pnpm infra:up      # Logto + its PostgreSQL, tickets-db, notifications-db, RabbitMQ, Valkey, Mailpit, Grafana stack
    ```
 
    Wait until `curl localhost:3301/oidc/.well-known/openid-configuration` answers.
@@ -70,13 +70,14 @@ pnpm dev           # every service, the two workers and the web app in watch mod
 Then open http://localhost:3000 and sign in. One package at a time:
 `pnpm turbo run dev --filter=@ticketmanager/tickets-service`.
 
-| Tool                  | URL                                        | Credentials                       |
-| --------------------- | ------------------------------------------ | --------------------------------- |
-| Web app               | http://localhost:3000                      | your Logto user                   |
-| Logto console         | http://localhost:3302                      | admin account                     |
-| RabbitMQ management   | http://localhost:15672                     | `ticketmanager` / `ticketmanager` |
-| Mailpit (sent emails) | http://localhost:8025                      | none                              |
-| Service health        | http://localhost:3001/health, :3002, :3003 | none                              |
+| Tool                            | URL                                        | Credentials                       |
+| ------------------------------- | ------------------------------------------ | --------------------------------- |
+| Web app                         | http://localhost:3000                      | your Logto user                   |
+| Logto console                   | http://localhost:3302                      | admin account                     |
+| Grafana (metrics, logs, traces) | http://localhost:3030                      | none (anonymous admin)            |
+| RabbitMQ management             | http://localhost:15672                     | `ticketmanager` / `ticketmanager` |
+| Mailpit (sent emails)           | http://localhost:8025                      | none                              |
+| Service health                  | http://localhost:3001/health, :3002, :3003 | none                              |
 
 Stop the infrastructure with `pnpm infra:down` (data stays in Docker volumes).
 

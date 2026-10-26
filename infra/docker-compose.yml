@@ -6,6 +6,7 @@
 # Console: http://localhost:3302   OIDC endpoint: http://localhost:3301
 # Mailpit UI: http://localhost:8025   RabbitMQ UI: http://localhost:15672
 # tickets-db: localhost:5433   notifications-db: localhost:5434   valkey (tickets read cache): localhost:6379
+# Grafana (traces, metrics, logs): http://localhost:3030   OTLP: localhost:4318 (see compose/observability.yml)
 #
 # Secrets: `${VAR}` references are interpolated from `infra/.env` (the `.env` of the project
 # directory, which Compose takes from the first `-f` file), never injected wholesale with
@@ -16,6 +17,7 @@ name: ticketmanager
 include:
   - compose/tickets-relay.yml
   - compose/notifications-email-retry.yml
+  - compose/observability.yml
 
 services:
   logto:

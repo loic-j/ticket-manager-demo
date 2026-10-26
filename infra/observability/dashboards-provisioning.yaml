@@ -1,0 +1,9 @@
+# Grafana provisioning of the dashboards committed in ./dashboards (mounted by compose/observability.yml).
+apiVersion: 1
+providers:
+  - name: 'ticketmanager'
+    type: file
+    allowUiUpdates: true
+    options:
+      path: /otel-lgtm/grafana/conf/provisioning/dashboards/custom
+      foldersFromFilesStructure: false

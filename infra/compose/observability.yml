@@ -1,0 +1,83 @@
+# Observability backend (ADR 004): Grafana + Prometheus + Tempo + Loki + Pyroscope + OpenTelemetry
+# Collector in one image, plus Grafana Alloy (container logs → Loki, exporters → Prometheus) and
+# the Prometheus exporters of the infrastructure. Included by ../docker-compose.yml, so it starts
+# with `pnpm infra:up`. Applications push OTLP to lgtm:4318 (localhost:4318 from the host).
+#   Grafana: http://localhost:3030 (anonymous admin)   Alloy UI: http://localhost:12345
+services:
+  lgtm:
+    image: grafana/otel-lgtm:0.38.0
+    ports:
+      - '3030:3000' # Grafana (3000 is the web app)
+      - '4317:4317' # OTLP gRPC
+      - '4318:4318' # OTLP HTTP
+      - '9090:9090' # Prometheus (remote-write + OTLP receivers enabled by the image)
+      - '3100:3100' # Loki
+      - '3200:3200' # Tempo
+      - '4040:4040' # Pyroscope
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: 'true'
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: 'true'
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /otel-lgtm/grafana/conf/provisioning/dashboards/custom/infrastructure.json
+    volumes:
+      - lgtm-data:/data
+      - ../observability/dashboards-provisioning.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/custom.yaml:ro
+      - ../observability/dashboards:/otel-lgtm/grafana/conf/provisioning/dashboards/custom:ro
+    healthcheck:
+      # The image writes /tmp/ready once every component answers (no wget in the image).
+      test: ['CMD-SHELL', 'test -f /tmp/ready']
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+
+  # Collection agent: tails the Docker logs of this project into Loki and scrapes the exporters
+  # below (and RabbitMQ's built-in plugin) into Prometheus. Needs the Docker socket (read-only).
+  alloy:
+    image: grafana/alloy:v1.21.2
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --storage.path=/var/lib/alloy/data
+      - --server.http.listen-addr=0.0.0.0:12345
+    ports:
+      - '12345:12345'
+    volumes:
+      - ../observability/alloy.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - alloy-data:/var/lib/alloy/data
+    depends_on:
+      lgtm:
+        condition: service_healthy
+
+  postgres-exporter-tickets:
+    image: prometheuscommunity/postgres-exporter:v0.20.1
+    environment:
+      DATA_SOURCE_URI: tickets-db:5432/tickets?sslmode=disable
+      DATA_SOURCE_USER: tickets
+      DATA_SOURCE_PASS: tickets
+    depends_on:
+      tickets-db:
+        condition: service_healthy
+
+  postgres-exporter-notifications:
+    image: prometheuscommunity/postgres-exporter:v0.20.1
+    environment:
+      DATA_SOURCE_URI: notifications-db:5432/notifications?sslmode=disable
+      DATA_SOURCE_USER: notifications
+      DATA_SOURCE_PASS: notifications
+    depends_on:
+      notifications-db:
+        condition: service_healthy
+
+  valkey-exporter:
+    image: oliver006/redis_exporter:v1.96.0
+    environment:
+      REDIS_ADDR: redis://valkey:6379
+    depends_on:
+      valkey:
+        condition: service_healthy
+
+volumes:
+  lgtm-data:
+  alloy-data:

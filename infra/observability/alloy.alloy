@@ -1,0 +1,92 @@
+// Grafana Alloy configuration (ADR 004).
+// 1. Container logs of the "ticketmanager" compose project → Loki (service_name = compose service).
+// 2. Prometheus exporters of the infrastructure → Prometheus (remote write) inside the lgtm container.
+// The applications do not go through Alloy: they push OTLP straight to lgtm:4318.
+
+// ---------- Container logs ----------
+
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "containers" {
+  targets = discovery.docker.containers.targets
+
+  // Only this compose project.
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    regex         = "ticketmanager"
+    action        = "keep"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "service_name"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+
+  rule {
+    target_label = "source"
+    replacement  = "docker"
+  }
+}
+
+loki.source.docker "containers" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.containers.output
+  forward_to = [loki.write.lgtm.receiver]
+}
+
+loki.write "lgtm" {
+  endpoint {
+    url = "http://lgtm:3100/loki/api/v1/push"
+  }
+}
+
+// ---------- Infrastructure metrics ----------
+
+// Aggregated node-level metrics of the broker (connections, channels, publish/deliver totals…).
+prometheus.scrape "rabbitmq" {
+  job_name        = "rabbitmq"
+  targets         = [{ __address__ = "rabbitmq:15692" }]
+  scrape_interval = "15s"
+  forward_to      = [prometheus.remote_write.lgtm.receiver]
+}
+
+// Per-queue depth and consumers (metric names prefixed rabbitmq_detailed_*).
+prometheus.scrape "rabbitmq_queues" {
+  job_name        = "rabbitmq-queues"
+  targets         = [{ __address__ = "rabbitmq:15692" }]
+  metrics_path    = "/metrics/detailed"
+  params          = { family = ["queue_coarse_metrics", "queue_consumer_count"] }
+  scrape_interval = "15s"
+  forward_to      = [prometheus.remote_write.lgtm.receiver]
+}
+
+prometheus.scrape "postgres" {
+  job_name = "postgres"
+  targets = [
+    { __address__ = "postgres-exporter-tickets:9187", database = "tickets" },
+    { __address__ = "postgres-exporter-notifications:9187", database = "notifications" },
+  ]
+  scrape_interval = "15s"
+  forward_to      = [prometheus.remote_write.lgtm.receiver]
+}
+
+prometheus.scrape "valkey" {
+  job_name        = "valkey"
+  targets         = [{ __address__ = "valkey-exporter:9121" }]
+  scrape_interval = "15s"
+  forward_to      = [prometheus.remote_write.lgtm.receiver]
+}
+
+prometheus.remote_write "lgtm" {
+  endpoint {
+    url = "http://lgtm:9090/api/v1/write"
+  }
+}

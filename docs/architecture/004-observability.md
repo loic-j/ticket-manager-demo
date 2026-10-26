@@ -1,6 +1,6 @@
 # ADR 004 - Observability: traces, metrics and logs for every process
 
-Status: **proposed** (awaiting validation) · Date: 2026-10-26
+Status: accepted · Date: 2026-10-26
 
 ## 1. Context
 

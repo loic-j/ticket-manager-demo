@@ -28,6 +28,11 @@
   refreshed ticket) and the action revalidates the edit path as well as `/`: the client cache
   otherwise serves the previous render of the page and the fields keep stale values while the
   controlled hidden version moves on (the "priority change sent a status change" bug).
+- Telemetry: `src/instrumentation.ts` registers `@vercel/otel` (Next's own spans + fetch, trace
+  context propagated to the three service URLs only). No metrics or logs exporter here: the web
+  logs stay on the console (Alloy ships the container logs in Docker mode). Keep the
+  `@opentelemetry/*` peers of `@vercel/otel` on their 2.x / 0.2xx line, independent of the 3.x
+  line used by `@ticketmanager/telemetry` in the services.
 - `src/app/error.tsx` (`retry` prop) and `src/app/not-found.tsx` are the safety net for whatever
   the pages do not handle themselves; `unstable_rethrow(error)` is the first statement of any
   `catch` that could swallow a Next.js control-flow error (see `src/app/callback/route.ts`).

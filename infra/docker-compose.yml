@@ -308,6 +308,8 @@ services:
     extra_hosts:
       - 'host.docker.internal:host-gateway'
     environment:
+      OTEL_SERVICE_NAME: web
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://lgtm:4318
       TICKETS_API_URL: http://tickets-service:3001
       NOTIFICATIONS_API_URL: http://notifications-service:3002
       DIRECTORY_API_URL: http://directory-service:3003

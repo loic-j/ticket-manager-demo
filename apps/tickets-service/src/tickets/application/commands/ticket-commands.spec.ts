@@ -2,6 +2,8 @@ import { ImmediateUnitOfWork, InMemoryOutbox } from '../../../messaging/infrastr
 import { ConcurrencyConflictError } from '../../domain/concurrency-conflict.error.js';
 import { TicketNotFoundError } from '../../domain/ticket-not-found.error.js';
 import type { TicketRepository } from '../../domain/ticket.repository.js';
+import { InMemoryCacheStore } from '../../../caching/infrastructure/testing.js';
+import { CacheStoreTicketCache } from '../../infrastructure/cache-store-ticket-cache.js';
 import { InMemoryTicketRepository } from '../../infrastructure/testing.js';
 import { toTicketView } from '../mappers/ticket.mapper.js';
 import { CreateTicketCommand } from './create-ticket.command.js';
@@ -14,16 +16,20 @@ import { UpdateTicketHandler } from './update-ticket.handler.js';
 describe('ticket command handlers', () => {
   let store: InMemoryTicketRepository;
   let outbox: InMemoryOutbox;
+  let cacheStore: InMemoryCacheStore;
+  let cache: CacheStoreTicketCache;
   const uow = new ImmediateUnitOfWork();
   const types = () => outbox.events.map((e) => e.envelope.type);
   const create = (actor = 'user_a') =>
-    new CreateTicketHandler(store, uow, outbox).execute(
+    new CreateTicketHandler(store, uow, outbox, cache).execute(
       new CreateTicketCommand({ title: 'A', description: '', priority: 'low' }, actor),
     );
 
   beforeEach(() => {
     store = new InMemoryTicketRepository();
     outbox = new InMemoryOutbox();
+    cacheStore = new InMemoryCacheStore();
+    cache = new CacheStoreTicketCache(cacheStore, { ttlMs: 60_000 });
   });
 
   it('creates an open ticket at version 1 and appends ticket.created with the state', async () => {
@@ -36,7 +42,7 @@ describe('ticket command handlers', () => {
 
   it('updates fields, bumps the version and appends ticket.changed', async () => {
     const id = await create();
-    await new UpdateTicketHandler(store, uow, outbox).execute(
+    await new UpdateTicketHandler(store, uow, outbox, cache).execute(
       new UpdateTicketCommand(id, { status: 'resolved', title: 'A2' }, 'user_b'),
     );
     expect(await store.findById(id)).toMatchObject({
@@ -55,7 +61,7 @@ describe('ticket command handlers', () => {
   it('is a no-op when nothing changes', async () => {
     const id = await create();
     const before = await store.findById(id);
-    await new UpdateTicketHandler(store, uow, outbox).execute(
+    await new UpdateTicketHandler(store, uow, outbox, cache).execute(
       new UpdateTicketCommand(id, { title: 'A' }, 'user_b'),
     );
     expect(await store.findById(id)).toEqual(before);
@@ -64,7 +70,7 @@ describe('ticket command handlers', () => {
 
   it('rejects a stale expectedVersion at once and accepts the current one', async () => {
     const id = await create();
-    const handler = new UpdateTicketHandler(store, uow, outbox);
+    const handler = new UpdateTicketHandler(store, uow, outbox, cache);
     await expect(
       handler.execute(new UpdateTicketCommand(id, { title: 'B' }, 'user_b', 99)),
     ).rejects.toBeInstanceOf(ConcurrencyConflictError);
@@ -77,7 +83,7 @@ describe('ticket command handlers', () => {
 
   it('never lets an explicit undefined wipe a field', async () => {
     const id = await create();
-    await new UpdateTicketHandler(store, uow, outbox).execute(
+    await new UpdateTicketHandler(store, uow, outbox, cache).execute(
       new UpdateTicketCommand(id, { title: 'A2', description: undefined }, 'user_b'),
     );
     expect(await store.findById(id)).toMatchObject({ title: 'A2', description: '', version: 2 });
@@ -98,7 +104,7 @@ describe('ticket command handlers', () => {
         return store.update(t);
       },
     };
-    await new UpdateTicketHandler(flaky, uow, outbox).execute(
+    await new UpdateTicketHandler(flaky, uow, outbox, cache).execute(
       new UpdateTicketCommand(id, { title: 'B' }, 'user_b'),
     );
     expect(await store.findById(id)).toMatchObject({ title: 'B', version: 2 });
@@ -106,7 +112,7 @@ describe('ticket command handlers', () => {
 
     const alwaysConflicting: TicketRepository = { ...flaky, update: async () => false };
     await expect(
-      new UpdateTicketHandler(alwaysConflicting, uow, outbox).execute(
+      new UpdateTicketHandler(alwaysConflicting, uow, outbox, cache).execute(
         new UpdateTicketCommand(id, { title: 'C' }, 'user_b'),
       ),
     ).rejects.toBeInstanceOf(ConcurrencyConflictError);
@@ -114,7 +120,7 @@ describe('ticket command handlers', () => {
 
   it('deletes with a superseding version; unknown ids raise TicketNotFoundError', async () => {
     const id = await create();
-    const handler = new DeleteTicketHandler(store, uow, outbox);
+    const handler = new DeleteTicketHandler(store, uow, outbox, cache);
     await handler.execute(new DeleteTicketCommand(id, 'user_a'));
     expect(await store.findById(id)).toBeNull();
     expect(outbox.events.at(-1)!.envelope).toMatchObject({
@@ -126,9 +132,31 @@ describe('ticket command handlers', () => {
       TicketNotFoundError,
     );
     await expect(
-      new UpdateTicketHandler(store, uow, outbox).execute(
+      new UpdateTicketHandler(store, uow, outbox, cache).execute(
         new UpdateTicketCommand(id, {}, 'user_a'),
       ),
     ).rejects.toBeInstanceOf(TicketNotFoundError);
+  });
+
+  it('evicts the cached ticket and list after a committed create, update and delete', async () => {
+    const id = await create();
+    await cache.setTicket(toTicketView((await store.findById(id))!));
+    await cache.setList([]);
+    await new UpdateTicketHandler(store, uow, outbox, cache).execute(
+      new UpdateTicketCommand(id, { title: 'B' }, 'user_b'),
+    );
+    expect(await cache.getTicket(id)).toBeUndefined();
+    expect(await cache.getList()).toBeUndefined();
+
+    await cache.setList([]);
+    await new UpdateTicketHandler(store, uow, outbox, cache).execute(
+      new UpdateTicketCommand(id, { title: 'B' }, 'user_b'), // no change: nothing to evict
+    );
+    expect(await cache.getList()).toEqual([]);
+
+    await new DeleteTicketHandler(store, uow, outbox, cache).execute(
+      new DeleteTicketCommand(id, 'user_a'),
+    );
+    expect(await cache.getList()).toBeUndefined();
   });
 });

@@ -9,6 +9,7 @@ import {
 import { TICKET_REPOSITORY, type TicketRepository } from '../../domain/ticket.repository.js';
 import { createTicket } from '../../domain/ticket.js';
 import { toNewTicket } from '../mappers/ticket.mapper.js';
+import { TICKET_CACHE, type TicketCache } from '../ports/ticket-cache.js';
 import { toIntegrationEvents } from '../events/ticket-integration-events.js';
 import { CreateTicketCommand } from './create-ticket.command.js';
 
@@ -19,6 +20,7 @@ export class CreateTicketHandler implements ICommandHandler<CreateTicketCommand,
     @Inject(TICKET_REPOSITORY) private readonly tickets: TicketRepository,
     @Inject(UNIT_OF_WORK) private readonly unitOfWork: UnitOfWork,
     @Inject(OUTBOX) private readonly outbox: Outbox,
+    @Inject(TICKET_CACHE) private readonly cache: TicketCache,
   ) {}
 
   async execute({ dto, actor }: CreateTicketCommand): Promise<string> {
@@ -28,6 +30,7 @@ export class CreateTicketHandler implements ICommandHandler<CreateTicketCommand,
       await this.tickets.insert(ticket);
       await this.outbox.append(toIntegrationEvents(events, actor));
     });
+    await this.cache.evict(ticket.id); // after commit: the list no longer matches the store
     return ticket.id;
   }
 }

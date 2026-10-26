@@ -12,7 +12,7 @@ apps/
   directory-service/      NestJS 12: user directory over the Logto Management API, no DB → http://localhost:3003
   web/        Next.js 16 (App Router, Tailwind 4, ESLint) → http://localhost:3000
 infra/
-  docker-compose.yml         Logto + its PostgreSQL, one PostgreSQL per service, RabbitMQ, Mailpit (+ apps under profile "apps")
+  docker-compose.yml         Logto + its PostgreSQL, one PostgreSQL per service, RabbitMQ, Valkey (tickets read cache), Mailpit (+ apps under profile "apps")
   docker-compose.docker.yml  Override for the full-Docker mode (Logto exposed as host.docker.internal)
 packages/
   contracts/          @ticketmanager/contracts — Zod schemas + inferred types (the HTTP contract)
@@ -143,21 +143,24 @@ tickets/
   application/
     commands/         CreateTicket / UpdateTicket / DeleteTicket commands + handlers (write port only)
     queries/          ListTickets / GetTicket queries + handlers (read port only, return API views)
-    ports/            TicketReadRepository (read side)
-  infrastructure/     PrismaTicketRepository (write), PrismaTicketReadRepository (read),
-                      InMemoryTicketRepository (both ports, used by tests)
+    ports/            TicketReadRepository (read side), TicketCache (read cache, evicted by commands)
+    mappers/          contract DTOs → domain inputs, domain → API views (the only conversion point)
+  infrastructure/     PrismaTicketRepository (write), PrismaTicketReadRepository (read) behind
+                      CachingTicketReadRepository (cache-aside), CacheStoreTicketCache,
+                      testing.ts (InMemoryTicketRepository, both ports, used by tests)
   presentation/       HTTP controller dispatching to CommandBus / QueryBus, error filter
   tickets.module.ts   Composition root: CqrsModule, handlers, port → adapter bindings
 ```
 
 Every other folder under `src/` follows the same shape, including the cross-cutting ones:
-`messaging/` (`application/ports`, `infrastructure/` outbox + relay, `presentation/` consumer in
-notifications-service), `database/infrastructure/prisma.service.ts`,
-`health/presentation/health.controller.ts`. Modules and config files sit at the folder root.
+`messaging/` (`application/ports`, `infrastructure/` outbox write side; the relay is its own
+package and the consumer lives in notifications-service), `caching/` (`CACHE_STORE` port, Valkey
+adapter, see "Read cache" below), `database/infrastructure/prisma.service.ts`,
+`health/health.module.ts` + `presentation/`. Modules and config files sit at the folder root.
 
 Commands return ids; the controller reads the result back through a query. Domain transitions
 return `{ ticket, events }`; handlers persist the state and the matching integration events in
-one transaction (see "Events and outbox" below), then publish the domain events in-process. Request validation happens at the boundary with the Zod
+one transaction (see "Events and outbox" below). Request validation happens at the boundary with the Zod
 schemas from `@ticketmanager/contracts`. To change the storage, add adapters in `infrastructure/`
 and rebind the ports in `tickets.module.ts`; nothing else moves.
 
@@ -262,6 +265,21 @@ pnpm --filter @ticketmanager/tickets-service test:int       # integration test o
 
 `DATABASE_URL` is read from `apps/tickets-service/.env` (see `.env.example`). Unit and e2e tests never touch
 the database: the e2e helper swaps in `InMemoryTicketRepository`.
+
+## Read cache (Valkey)
+
+tickets-service keeps its API views in [Valkey](https://valkey.io) (Redis-compatible, BSD; the
+`valkey` service of `pnpm infra:up`, `localhost:6379`), see ADR 003. Cache-aside on the read
+port: `GET /tickets` and `GET /tickets/:id` are served from the cache when present, otherwise
+read from PostgreSQL and cached for `CACHE_TTL_MS` (60 s). Every committed create, update or
+delete evicts the ticket entry and the list, so a change is visible on the next read. The cache
+is an optimisation only: when Valkey is down or slower than `CACHE_TIMEOUT_MS` (250 ms) the
+service logs one warning and reads the database; `CACHE_ENABLED=false` bypasses it. The client is
+node-redis (`redis`), the official client; a Redis 8 image works unchanged (`CACHE_URL`).
+
+```bash
+pnpm --filter @ticketmanager/tickets-service test:int       # also covers RedisCacheStore against Valkey
+```
 
 ## Docker
 

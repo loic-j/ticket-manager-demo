@@ -11,6 +11,7 @@ import { TicketNotFoundError } from '../../domain/ticket-not-found.error.js';
 import { TICKET_REPOSITORY, type TicketRepository } from '../../domain/ticket.repository.js';
 import { updateTicket } from '../../domain/ticket.js';
 import { toTicketPatch } from '../mappers/ticket.mapper.js';
+import { TICKET_CACHE, type TicketCache } from '../ports/ticket-cache.js';
 import { toIntegrationEvents } from '../events/ticket-integration-events.js';
 import { UpdateTicketCommand } from './update-ticket.command.js';
 
@@ -28,6 +29,7 @@ export class UpdateTicketHandler implements ICommandHandler<UpdateTicketCommand,
     @Inject(TICKET_REPOSITORY) private readonly tickets: TicketRepository,
     @Inject(UNIT_OF_WORK) private readonly unitOfWork: UnitOfWork,
     @Inject(OUTBOX) private readonly outbox: Outbox,
+    @Inject(TICKET_CACHE) private readonly cache: TicketCache,
   ) {}
 
   async execute(command: UpdateTicketCommand): Promise<void> {
@@ -57,12 +59,16 @@ export class UpdateTicketHandler implements ICommandHandler<UpdateTicketCommand,
     if (events.length === 0) {
       return true; // nothing changed: no write, no event
     }
-    return this.unitOfWork.run(async () => {
+    const applied = await this.unitOfWork.run(async () => {
       if (!(await this.tickets.update(ticket))) {
         return false; // the unit of work has nothing to commit
       }
       await this.outbox.append(toIntegrationEvents(events, actor));
       return true;
     });
+    if (applied) {
+      await this.cache.evict(ticketId); // after commit, never inside the transaction
+    }
+    return applied;
   }
 }

@@ -33,8 +33,10 @@
     "@ticketmanager/contracts": "workspace:*",
     "@ticketmanager/events": "workspace:*",
     "@ticketmanager/nest-common": "workspace:*",
+    "redis": "^6.3.0",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@nestjs/cli": "^12.0.0",

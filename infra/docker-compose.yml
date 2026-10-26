@@ -5,7 +5,7 @@
 #   pnpm infra:up / infra:down / infra:logs      pnpm docker:build / docker:up / docker:down
 # Console: http://localhost:3302   OIDC endpoint: http://localhost:3301
 # Mailpit UI: http://localhost:8025   RabbitMQ UI: http://localhost:15672
-# tickets-db: localhost:5433   notifications-db: localhost:5434
+# tickets-db: localhost:5433   notifications-db: localhost:5434   valkey (tickets read cache): localhost:6379
 #
 # Secrets: `${VAR}` references are interpolated from `infra/.env` (the `.env` of the project
 # directory, which Compose takes from the first `-f` file), never injected wholesale with
@@ -122,6 +122,30 @@ services:
       timeout: 10s
       retries: 10
 
+  # Read cache of tickets-service (Redis-compatible, BSD licensed). Volatile by design: nothing
+  # is persisted, a restart only empties the cache.
+  valkey:
+    image: valkey/valkey:9.1-alpine
+    command:
+      [
+        'valkey-server',
+        '--save',
+        '',
+        '--appendonly',
+        'no',
+        '--maxmemory',
+        '128mb',
+        '--maxmemory-policy',
+        'allkeys-lru',
+      ]
+    ports:
+      - '6379:6379'
+    healthcheck:
+      test: ['CMD', 'valkey-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   tickets-migrate:
     profiles: ['apps']
     build:
@@ -145,6 +169,8 @@ services:
     depends_on:
       tickets-migrate:
         condition: service_completed_successfully
+      valkey:
+        condition: service_healthy
       logto:
         condition: service_healthy
     ports:
@@ -155,6 +181,7 @@ services:
       PORT: 3001
       CORS_ORIGIN: http://localhost:3000
       DATABASE_URL: postgresql://tickets:tickets@tickets-db:5432/tickets
+      CACHE_URL: redis://valkey:6379
       LOGTO_ENDPOINT: http://host.docker.internal:3301
       LOGTO_API_RESOURCE: https://api.ticketmanager.local
     healthcheck:

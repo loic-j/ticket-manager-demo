@@ -18,6 +18,8 @@ import { ApiError, ticketsApi } from './api';
 
 const STALE_FORM_MESSAGE = 'This form is out of date; reload the page and try again.';
 
+const editPath = (id: string) => `/tickets/${id}/edit`;
+
 function text(formData: FormData, name: string): string {
   const value = formData.get(name);
   return typeof value === 'string' ? value : '';
@@ -78,8 +80,10 @@ export async function updateTicketAction(
   } catch (error) {
     return failedActionState(error, values);
   }
-  // redirect() throws, so it must stay outside the try block.
+  // redirect() throws, so it must stay outside the try block. The edit page is revalidated too:
+  // the client cache would otherwise serve its previous render on the next visit.
   revalidatePath('/');
+  revalidatePath(editPath(ticketId.data));
   redirect('/');
 }
 
@@ -98,5 +102,6 @@ export async function deleteTicketAction(id: string): Promise<ActionState> {
     if (!(error instanceof ApiError && error.status === 404)) return failedActionState(error);
   }
   revalidatePath('/');
+  revalidatePath(editPath(ticketId.data));
   return {};
 }

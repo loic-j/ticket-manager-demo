@@ -30,5 +30,7 @@ async function EditTicket({ params }: Pick<PageProps<'/tickets/[id]/edit'>, 'par
     if (error instanceof ApiError && error.status === 404) notFound();
     throw error;
   });
-  return <EditTicketForm ticket={ticket} />;
+  // Keyed by version: the inputs use `defaultValue`, so a refreshed ticket must remount the form
+  // (otherwise the fields keep the previous values while the hidden expectedVersion moves on).
+  return <EditTicketForm key={`${ticket.id}:${ticket.version}`} ticket={ticket} />;
 }

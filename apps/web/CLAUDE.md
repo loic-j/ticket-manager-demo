@@ -23,7 +23,11 @@
   error is logged server-side only). `revalidatePath()` / `redirect()` stay outside the `try`.
   Forms re-render with `state.values` after an error and render `SubmitButton` (`'use client'`,
   `useFormStatus`) for the pending state. The edit form sends the ticket `version` as a hidden
-  `expectedVersion` input so a concurrent edit is answered 409 instead of overwritten.
+  `expectedVersion` input so a concurrent edit is answered 409 instead of overwritten. Inputs use
+  `defaultValue`, so a form fed by server data is rendered with `key={id:version}` (remount on a
+  refreshed ticket) and the action revalidates the edit path as well as `/`: the client cache
+  otherwise serves the previous render of the page and the fields keep stale values while the
+  controlled hidden version moves on (the "priority change sent a status change" bug).
 - `src/app/error.tsx` (`retry` prop) and `src/app/not-found.tsx` are the safety net for whatever
   the pages do not handle themselves; `unstable_rethrow(error)` is the first statement of any
   `catch` that could swallow a Next.js control-flow error (see `src/app/callback/route.ts`).

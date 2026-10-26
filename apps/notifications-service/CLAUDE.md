@@ -28,6 +28,10 @@ version)` run inside `UNIT_OF_WORK.run()` with the notification insert, for **ev
   and is imported only by `email-retry-worker.module.ts` / `main.email-retry.ts` (Docker target
   `email-retry`). `pnpm dev` runs the HTTP process and the worker side by side. `HealthModule`
   declares the public liveness probe.
+- Domain: `domain/notification.ts` owns the model (`Notification` with `Date` fields, the kind and
+  delivery-status unions) and imports nothing. `application/mappers/notification.mapper.ts`
+  renders the `@ticketmanager/contracts` view (recipient-facing fields, ISO dates) for the read
+  side; the Prisma row mapper in `infrastructure/` maps rows ↔ domain with `Date` on both sides.
 - Repository writes are field-targeted (`insert`, `updateEmail`, `markRead`) so the email job
   and the user's "mark as read" never overwrite each other.
 - Which event produces which notification lives in

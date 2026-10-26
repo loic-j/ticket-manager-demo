@@ -1,6 +1,7 @@
 import { TicketNotFoundError } from '../../domain/ticket-not-found.error.js';
 import { createTicket } from '../../domain/ticket.js';
 import { InMemoryTicketRepository } from '../../infrastructure/testing.js';
+import { toTicketView } from '../mappers/ticket.mapper.js';
 import { GetTicketHandler } from './get-ticket.handler.js';
 import { GetTicketQuery } from './get-ticket.query.js';
 import { ListTicketsHandler } from './list-tickets.handler.js';
@@ -11,10 +12,9 @@ describe('ticket query handlers', () => {
     const { ticket } = createTicket({ title: 'A', description: '', priority: 'low' }, 'user_a');
     await store.insert(ticket);
 
-    expect(await new ListTicketsHandler(store).execute()).toEqual([ticket]);
-    expect(await new GetTicketHandler(store).execute(new GetTicketQuery(ticket.id))).toEqual(
-      ticket,
-    );
+    const view = toTicketView(ticket);
+    expect(await new ListTicketsHandler(store).execute()).toEqual([view]);
+    expect(await new GetTicketHandler(store).execute(new GetTicketQuery(ticket.id))).toEqual(view);
     await expect(
       new GetTicketHandler(store).execute(new GetTicketQuery('missing')),
     ).rejects.toBeInstanceOf(TicketNotFoundError);

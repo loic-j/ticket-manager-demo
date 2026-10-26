@@ -4,6 +4,7 @@ import { ticketCreatedV1 } from '@ticketmanager/events';
 import { PrismaService } from '../src/database/infrastructure/prisma.service.js';
 import { PrismaOutbox } from '../src/messaging/infrastructure/prisma-outbox.js';
 import { PrismaUnitOfWork } from '../src/messaging/infrastructure/prisma-unit-of-work.js';
+import { toTicketView } from '../src/tickets/application/mappers/ticket.mapper.js';
 import { createTicket } from '../src/tickets/domain/ticket.js';
 
 /** Needs tickets-db (`pnpm infra:up`). The relay itself is tested in `packages/outbox`. */
@@ -17,7 +18,11 @@ describe('PrismaOutbox + PrismaUnitOfWork (integration)', () => {
 
   const created = (title: string) =>
     ticketCreatedV1.create(
-      { ticket: createTicket({ title, description: '', priority: 'low' }, 'user_int').ticket },
+      {
+        ticket: toTicketView(
+          createTicket({ title, description: '', priority: 'low' }, 'user_int').ticket,
+        ),
+      },
       { occurredAt: inOneHour },
     );
   const row = (envelope: ReturnType<typeof created>) => ({

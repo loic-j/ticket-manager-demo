@@ -1,4 +1,4 @@
-import type { Ticket } from '@ticketmanager/contracts';
+import type { Ticket as TicketView } from '@ticketmanager/contracts';
 
 export const TICKET_READ_REPOSITORY = Symbol('TICKET_READ_REPOSITORY');
 
@@ -7,6 +7,6 @@ export const TICKET_READ_REPOSITORY = Symbol('TICKET_READ_REPOSITORY');
  * domain objects, so the query side can later move to a denormalised read model.
  */
 export interface TicketReadRepository {
-  list(): Promise<Ticket[]>;
-  getById(id: string): Promise<Ticket | null>;
+  list(): Promise<TicketView[]>;
+  getById(id: string): Promise<TicketView | null>;
 }

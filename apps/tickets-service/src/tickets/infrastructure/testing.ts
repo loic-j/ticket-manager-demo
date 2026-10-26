@@ -1,3 +1,5 @@
+import type { Ticket as TicketView } from '@ticketmanager/contracts';
+import { toTicketView } from '../application/mappers/ticket.mapper.js';
 import type { TicketReadRepository } from '../application/ports/ticket-read.repository.js';
 import type { TicketRepository } from '../domain/ticket.repository.js';
 import type { Ticket } from '../domain/ticket.js';
@@ -34,12 +36,13 @@ export class InMemoryTicketRepository implements TicketRepository, TicketReadRep
     return current;
   }
 
-  // Read side
-  async list(): Promise<Ticket[]> {
-    return [...this.tickets.values()];
+  // Read side (API views, like the Prisma read adapter)
+  async list(): Promise<TicketView[]> {
+    return [...this.tickets.values()].map(toTicketView);
   }
 
-  getById(id: string): Promise<Ticket | null> {
-    return this.findById(id);
+  async getById(id: string): Promise<TicketView | null> {
+    const ticket = this.tickets.get(id);
+    return ticket ? toTicketView(ticket) : null;
   }
 }

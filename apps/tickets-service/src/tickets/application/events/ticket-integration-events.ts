@@ -7,6 +7,7 @@ import {
 } from '../../domain/events/ticket-events.js';
 import type { ActorId } from '../../domain/ticket.js';
 import type { OutboxEvent } from '../../../messaging/application/ports/outbox.js';
+import { toTicketView } from '../mappers/ticket.mapper.js';
 
 const AGGREGATE = 'ticket';
 
@@ -22,10 +23,13 @@ export function toIntegrationEvents(events: TicketDomainEvent[], actor: ActorId)
 function toEnvelope(event: TicketDomainEvent, actor: ActorId) {
   const meta = { actor };
   if (event instanceof TicketCreatedEvent) {
-    return ticketCreatedV1.create({ ticket: event.ticket }, meta);
+    return ticketCreatedV1.create({ ticket: toTicketView(event.ticket) }, meta);
   }
   if (event instanceof TicketChangedEvent) {
-    return ticketChangedV1.create({ ticket: event.ticket, changes: event.changes }, meta);
+    return ticketChangedV1.create(
+      { ticket: toTicketView(event.ticket), changes: event.changes },
+      meta,
+    );
   }
   return ticketDeletedV1.create(
     { ticketId: event.ticketId, version: event.version, deletedBy: event.deletedBy },

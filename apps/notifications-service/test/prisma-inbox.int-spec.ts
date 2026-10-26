@@ -65,7 +65,7 @@ describe('Prisma inbox and notifications (integration)', () => {
       email: 'failed',
       emailError: 'x',
       emailAttempts: 1,
-      emailLastTriedAt: new Date().toISOString(),
+      emailLastTriedAt: new Date(),
     });
     const stored = await repo.findById(notification.id);
     expect(stored?.readAt).not.toBeNull(); // the email update did not clear readAt
@@ -99,7 +99,7 @@ describe('Prisma inbox and notifications (integration)', () => {
         eventId: crypto.randomUUID(),
       });
       notificationIds.push(n.id);
-      await repo.insert({ ...n, createdAt: old.toISOString(), email: 'failed', emailAttempts: 1 });
+      await repo.insert({ ...n, createdAt: old, email: 'failed', emailAttempts: 1 });
     }
     const options = {
       maxAttempts: 5,

@@ -3,6 +3,7 @@ import { ConcurrencyConflictError } from '../../domain/concurrency-conflict.erro
 import { TicketNotFoundError } from '../../domain/ticket-not-found.error.js';
 import type { TicketRepository } from '../../domain/ticket.repository.js';
 import { InMemoryTicketRepository } from '../../infrastructure/testing.js';
+import { toTicketView } from '../mappers/ticket.mapper.js';
 import { CreateTicketCommand } from './create-ticket.command.js';
 import { CreateTicketHandler } from './create-ticket.handler.js';
 import { DeleteTicketCommand } from './delete-ticket.command.js';
@@ -30,7 +31,7 @@ describe('ticket command handlers', () => {
     const ticket = await store.findById(id);
     expect(ticket).toMatchObject({ status: 'open', createdBy: 'user_a', version: 1 });
     expect(types()).toEqual(['ticket.created']);
-    expect(outbox.events[0]!.envelope.payload).toEqual({ ticket });
+    expect(outbox.events[0]!.envelope.payload).toEqual({ ticket: toTicketView(ticket!) });
   });
 
   it('updates fields, bumps the version and appends ticket.changed', async () => {

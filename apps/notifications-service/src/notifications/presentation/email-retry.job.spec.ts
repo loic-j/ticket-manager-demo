@@ -45,7 +45,7 @@ describe('EmailRetryJob', () => {
 
   it('re-sends failed and pending emails until the attempt limit', async () => {
     const { repo, mailer, job } = setup();
-    const old = new Date(Date.now() - 60_000).toISOString();
+    const old = new Date(Date.now() - 60_000);
     const base = {
       userId: 'u1',
       kind: 'ticket_created' as const,

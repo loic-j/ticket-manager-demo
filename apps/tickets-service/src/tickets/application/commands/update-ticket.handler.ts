@@ -10,6 +10,7 @@ import { ConcurrencyConflictError } from '../../domain/concurrency-conflict.erro
 import { TicketNotFoundError } from '../../domain/ticket-not-found.error.js';
 import { TICKET_REPOSITORY, type TicketRepository } from '../../domain/ticket.repository.js';
 import { updateTicket } from '../../domain/ticket.js';
+import { toTicketPatch } from '../mappers/ticket.mapper.js';
 import { toIntegrationEvents } from '../events/ticket-integration-events.js';
 import { UpdateTicketCommand } from './update-ticket.command.js';
 
@@ -52,7 +53,7 @@ export class UpdateTicketHandler implements ICommandHandler<UpdateTicketCommand,
     if (expectedVersion !== undefined && current.version !== expectedVersion) {
       throw new ConcurrencyConflictError(ticketId); // stale client copy: retrying cannot help
     }
-    const { ticket, events } = updateTicket(current, dto, actor);
+    const { ticket, events } = updateTicket(current, toTicketPatch(dto), actor);
     if (events.length === 0) {
       return true; // nothing changed: no write, no event
     }

@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../src/database/infrastructure/prisma.service.js';
+import { toTicketView } from '../src/tickets/application/mappers/ticket.mapper.js';
 import { createTicket } from '../src/tickets/domain/ticket.js';
 import { PrismaTicketReadRepository } from '../src/tickets/infrastructure/prisma-ticket-read.repository.js';
 import { PrismaTicketRepository } from '../src/tickets/infrastructure/prisma-ticket.repository.js';
@@ -31,7 +32,7 @@ describe('PrismaTicketRepository (integration)', () => {
 
     await repository.insert(ticket);
     expect(await repository.findById(ticket.id)).toEqual(ticket);
-    expect(await readRepository.getById(ticket.id)).toEqual(ticket);
+    expect(await readRepository.getById(ticket.id)).toEqual(toTicketView(ticket));
     expect((await readRepository.list()).map((t) => t.id)).toContain(ticket.id);
 
     const v2 = { ...ticket, status: 'resolved' as const, version: 2 };

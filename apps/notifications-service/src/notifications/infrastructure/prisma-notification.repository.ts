@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import type { Notification as NotificationView } from '@ticketmanager/contracts';
 import { PrismaService } from '../../database/infrastructure/prisma.service.js';
+import { toNotificationView } from '../application/mappers/notification.mapper.js';
 import type { NotificationReadRepository } from '../application/ports/notification-read.repository.js';
 import type { NotificationRepository } from '../domain/notification.repository.js';
 import type { EmailDelivery, Notification } from '../domain/notification.js';
 import type { Notification as NotificationRow } from '../../generated/prisma/client.js';
-import { toNotification, toRow, toView } from './notification-row.mapper.js';
+import { toNotification, toRow } from './notification-row.mapper.js';
 
 @Injectable()
 export class PrismaNotificationRepository implements NotificationRepository {
@@ -27,7 +28,7 @@ export class PrismaNotificationRepository implements NotificationRepository {
         email: delivery.email,
         emailError: delivery.emailError,
         emailAttempts: delivery.emailAttempts,
-        emailLastTriedAt: delivery.emailLastTriedAt ? new Date(delivery.emailLastTriedAt) : null,
+        emailLastTriedAt: delivery.emailLastTriedAt,
       },
     });
   }
@@ -73,7 +74,7 @@ export class PrismaNotificationReadRepository implements NotificationReadReposit
       orderBy: { createdAt: 'desc' },
       take: 100,
     });
-    return rows.map((row) => toView(toNotification(row)));
+    return rows.map((row) => toNotificationView(toNotification(row)));
   }
 }
 

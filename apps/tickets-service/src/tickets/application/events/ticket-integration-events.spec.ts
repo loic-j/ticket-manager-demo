@@ -1,6 +1,7 @@
 import { ticketChangedV1, ticketCreatedV1, ticketDeletedV1 } from '@ticketmanager/events';
 import { TicketDeletedEvent } from '../../domain/events/ticket-events.js';
 import { createTicket, updateTicket } from '../../domain/ticket.js';
+import { toTicketView } from '../mappers/ticket.mapper.js';
 import { toIntegrationEvents } from './ticket-integration-events.js';
 
 describe('toIntegrationEvents', () => {
@@ -9,7 +10,7 @@ describe('toIntegrationEvents', () => {
     const [out] = toIntegrationEvents(events, 'u1');
     expect(out).toMatchObject({ aggregateType: 'ticket', aggregateId: ticket.id });
     expect(ticketCreatedV1.is(out!.envelope)).toBe(true);
-    expect(out!.envelope.payload).toEqual({ ticket });
+    expect(out!.envelope.payload).toEqual({ ticket: toTicketView(ticket) });
     expect(out!.envelope.actor).toBe('u1');
   });
 

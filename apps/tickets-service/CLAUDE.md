@@ -4,15 +4,17 @@
   `database`, `health`) has the same shape: NestJS modules and config at its root
   (`<name>.module.ts`, `<name>.config.ts`), code only inside the layer folders it needs:
   `domain/` (model, pure transitions, write port, events, errors),
-  `application/commands|queries|ports|services|events` (@nestjs/cqrs handlers; commands return
-  ids, queries return `@ticketmanager/contracts` views), `infrastructure/` (Prisma / RabbitMQ /
+  `application/commands|queries|ports|services|events|mappers` (@nestjs/cqrs handlers; commands
+  return ids, queries return `@ticketmanager/contracts` views; `mappers/` is the only place where
+  DTOs become domain inputs and domain objects become views), `infrastructure/` (Prisma / RabbitMQ /
   SMTP adapters, in-memory doubles in `testing.ts`), `presentation/` (inbound adapters: HTTP
   controllers, error filters, broker consumers). Never put a class directly at a folder root.
   Register handlers in the module's `providers` via the `TICKET_COMMAND_HANDLERS` /
   `TICKET_QUERY_HANDLERS` arrays.
-- Allowed imports per layer: `domain/` only type-only imports from `@ticketmanager/contracts`
-  (the ticket model is the API shape today, see `domain/ticket.ts`), never `@ticketmanager/events`,
-  NestJS, Prisma or HTTP; `application/`
+- Allowed imports per layer: `domain/` none at all (it owns its model: `Ticket` with `Date`
+  fields, `NewTicket`, `TicketPatch`, the status/priority unions; `application/mappers/` maps
+  `@ticketmanager/contracts` DTOs in and views out, and a divergence between the two shapes is a
+  compile error there); `application/`
   `@nestjs/common`, `@nestjs/cqrs`, `@ticketmanager/events` and the cross-cutting ports in
   `src/messaging/application/ports` (explicit exception); `infrastructure/` anything; `presentation/`
   `@nestjs/*` only (no Prisma).
@@ -28,7 +30,8 @@
 - One process: `main.ts` (HTTP). `pnpm dev` runs `nest build --watch` plus `node --watch`.
   The relay is `apps/tickets-relay-service`, started by the root `pnpm dev` as well.
 - `PrismaService` (`src/database/`) is the single Prisma client; never instantiate `PrismaClient`
-  elsewhere. Persistence adapters map Prisma rows ↔ domain objects explicitly (dates ↔ ISO strings).
+  elsewhere. Persistence adapters map Prisma rows ↔ domain objects explicitly (`Date` on both
+  sides); ISO strings only appear in the API views produced by `application/mappers/`.
 - Global `AccessTokenGuard` (jose, JWKS from Logto). `@Public()` to opt out. Request user is
   available as `req.user: AuthUser` (shape in `@ticketmanager/contracts`).
 - Validation: `StandardSchemaValidationPipe` is global; pass shared Zod schemas via the `schema`

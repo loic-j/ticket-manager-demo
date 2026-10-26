@@ -1,4 +1,5 @@
 import type { Notification as NotificationView } from '@ticketmanager/contracts';
+import { toNotificationView } from '../application/mappers/notification.mapper.js';
 import type { Mail, Mailer } from '../application/ports/mailer.js';
 import type { NotificationReadRepository } from '../application/ports/notification-read.repository.js';
 import type { ProcessedEvents } from '../application/ports/processed-events.js';
@@ -7,7 +8,6 @@ import type { UnitOfWork } from '../application/ports/unit-of-work.js';
 import type { UserDirectory, UserProfile } from '../application/ports/user-directory.js';
 import type { NotificationRepository } from '../domain/notification.repository.js';
 import type { EmailDelivery, Notification } from '../domain/notification.js';
-import { toView } from './notification-row.mapper.js';
 
 /** Test doubles for every port (no database, no broker, no SMTP). */
 
@@ -32,7 +32,7 @@ export class InMemoryNotificationRepository
 
   async markRead(id: string, at: Date): Promise<void> {
     const row = this.rows.get(id);
-    if (row && !row.readAt) this.rows.set(id, { ...row, readAt: at.toISOString() });
+    if (row && !row.readAt) this.rows.set(id, { ...row, readAt: at });
   }
 
   async claimEmailRetryCandidates(options: {
@@ -41,18 +41,18 @@ export class InMemoryNotificationRepository
     limit: number;
     now: Date;
   }): Promise<Notification[]> {
-    const since = options.notTriedSince.toISOString();
+    const since = options.notTriedSince.getTime();
     const claimed = [...this.rows.values()]
       .filter(
         (n) =>
           n.email !== 'sent' &&
           n.emailAttempts < options.maxAttempts &&
-          (!n.emailLastTriedAt || n.emailLastTriedAt < since) &&
-          n.createdAt < since,
+          (!n.emailLastTriedAt || n.emailLastTriedAt.getTime() < since) &&
+          n.createdAt.getTime() < since,
       )
-      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
       .slice(0, options.limit)
-      .map((n) => ({ ...n, emailLastTriedAt: options.now.toISOString() }));
+      .map((n) => ({ ...n, emailLastTriedAt: options.now }));
     for (const n of claimed) this.rows.set(n.id, n);
     return claimed;
   }
@@ -60,8 +60,8 @@ export class InMemoryNotificationRepository
   async listForUser(userId: string): Promise<NotificationView[]> {
     return [...this.rows.values()]
       .filter((n) => n.userId === userId)
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-      .map(toView);
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .map(toNotificationView);
   }
 }
 

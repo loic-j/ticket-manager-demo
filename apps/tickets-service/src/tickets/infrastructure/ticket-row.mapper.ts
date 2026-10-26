@@ -1,7 +1,7 @@
-import type { Ticket } from '@ticketmanager/contracts';
 import type { Ticket as TicketRow } from '../../generated/prisma/client.js';
+import type { Ticket } from '../domain/ticket.js';
 
-/** Explicit mapping between Prisma rows and the ticket shape shared by both ports. */
+/** Explicit mapping between Prisma rows and the domain ticket (the read side renders views from it). */
 export function toTicket(row: TicketRow): Ticket {
   return {
     id: row.id,
@@ -12,8 +12,8 @@ export function toTicket(row: TicketRow): Ticket {
     createdBy: row.createdBy,
     updatedBy: row.updatedBy,
     version: row.version,
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
   };
 }
 
@@ -27,8 +27,8 @@ export function toTicketRow(ticket: Ticket): TicketRow {
     createdBy: ticket.createdBy,
     updatedBy: ticket.updatedBy,
     version: ticket.version,
-    createdAt: new Date(ticket.createdAt),
-    updatedAt: new Date(ticket.updatedAt),
+    createdAt: ticket.createdAt,
+    updatedAt: ticket.updatedAt,
   };
 }
 
@@ -46,6 +46,6 @@ export function toTicketUpdate(
     priority: ticket.priority,
     updatedBy: ticket.updatedBy,
     version: ticket.version,
-    updatedAt: new Date(ticket.updatedAt),
+    updatedAt: ticket.updatedAt,
   };
 }

@@ -8,6 +8,7 @@ import {
 } from '../../../messaging/application/ports/index.js';
 import { TICKET_REPOSITORY, type TicketRepository } from '../../domain/ticket.repository.js';
 import { createTicket } from '../../domain/ticket.js';
+import { toNewTicket } from '../mappers/ticket.mapper.js';
 import { toIntegrationEvents } from '../events/ticket-integration-events.js';
 import { CreateTicketCommand } from './create-ticket.command.js';
 
@@ -21,7 +22,7 @@ export class CreateTicketHandler implements ICommandHandler<CreateTicketCommand,
   ) {}
 
   async execute({ dto, actor }: CreateTicketCommand): Promise<string> {
-    const { ticket, events } = createTicket(dto, actor);
+    const { ticket, events } = createTicket(toNewTicket(dto), actor);
     // Aggregate and outbox rows commit together; the relay publishes to the broker afterwards.
     await this.unitOfWork.run(async () => {
       await this.tickets.insert(ticket);

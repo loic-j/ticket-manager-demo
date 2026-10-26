@@ -26,9 +26,10 @@ export const options = {
   thresholds: {
     api_errors: ['rate<0.01'],
     notifications_missing: ['count==0'],
-    'http_req_duration{name:POST /tickets}': ['p(95)<300'],
-    'http_req_duration{name:PATCH /tickets/:id}': ['p(95)<300'],
-    notification_e2e_ms: ['p(95)<10000'],
+    // Baseline 2026-10-26 at 10 → 30 lifecycles/s: POST p95 14 ms, PATCH p95 14 ms, e2e p95 551 ms.
+    'http_req_duration{name:POST /tickets}': ['p(95)<100'],
+    'http_req_duration{name:PATCH /tickets/:id}': ['p(95)<100'],
+    notification_e2e_ms: ['p(95)<3000'],
   },
 };
 

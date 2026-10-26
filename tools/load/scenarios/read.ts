@@ -17,8 +17,9 @@ export const options = {
   ],
   thresholds: {
     api_errors: ['rate<0.01'],
+    // Baseline 2026-10-26 at 785 req/s: list p95 111 ms, by id p95 54 ms, cache hit ratio 99.5 %.
     'http_req_duration{name:GET /tickets}': ['p(95)<150'],
-    'http_req_duration{name:GET /tickets/:id}': ['p(95)<150'],
+    'http_req_duration{name:GET /tickets/:id}': ['p(95)<100'],
   },
 };
 

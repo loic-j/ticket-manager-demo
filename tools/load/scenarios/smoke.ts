@@ -15,8 +15,9 @@ export const options = {
     checks: ['rate==1'],
     api_errors: ['rate==0'],
     notifications_missing: ['count==0'],
-    http_req_duration: ['p(95)<300'],
-    notification_e2e_ms: ['p(95)<10000'],
+    // Baseline 2026-10-26: API p95 16 ms, creation → notification p95 ≈ 550 ms (relay interval).
+    http_req_duration: ['p(95)<150'],
+    notification_e2e_ms: ['p(95)<3000'],
   },
 };
 

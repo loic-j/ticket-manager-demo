@@ -48,9 +48,12 @@ The APIs require a Logto token. k6 uses a **dedicated machine-to-machine app**:
    VUs; tokens are refreshed when a scenario runs longer than their lifetime.
 
 Consequences: tickets created by the load carry `createdBy = <app id>`; their notifications are
-addressed to that id, resolved as unknown by the directory, and emailed to
-`NOTIFICATIONS_DEV_FALLBACK_EMAIL` (Mailpit copes with thousands of messages). Every scenario
-deletes the tickets it created in `teardown()`.
+addressed to that id, which the directory resolves as unknown (an M2M app has no profile), so
+their emails fail with "recipient has no email address" and are retried `EMAIL_MAX_ATTEMPTS`
+times by the worker (without M2M credentials they would go to `NOTIFICATIONS_DEV_FALLBACK_EMAIL`
+instead). This is the realistic failure path of the pipeline and it shows on the dashboards; the
+rows are removed by `pnpm load:clean`. Every scenario deletes the tickets it created (in the
+iteration or in `teardown()`).
 
 ### Scenarios
 
@@ -93,7 +96,27 @@ A `soak` variant of `write` (30 min at 10 req/s) is documented, not scripted as 
 
 Each step ends with the full `verify` suite and a commit. Expected duration: one session.
 
-## 5. Consequences
+## 5. Baseline (2026-10-26, `pnpm dev` on the development machine, Docker infrastructure)
+
+| Scenario | Load                        | Result                                                                                                                                             |
+| -------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `smoke`  | 1 VU, 30 s                  | 0 errors, API p95 16 ms, creation → notification p95 ≈ 550 ms                                                                                      |
+| `read`   | 50 VUs, 4 min 30            | 785 req/s, 215 450 requests, 0 errors, `GET /tickets` p95 111 ms, `GET /tickets/:id` p95 54 ms, Valkey hit ratio 99.5 %                            |
+| `write`  | 10 → 30 lifecycles/s, 4 min | 3 599 lifecycles, 0 errors, `POST` p95 13.6 ms, `PATCH` p95 14.2 ms, creation → notification p95 551 ms, 0 missing, queue and DLQ empty at the end |
+
+Two behaviours observed and kept as they are, because they follow the rules of ADR 001:
+
+- About 9 % of the events were `stale` in the consumer during `write`: the status change often
+  overtakes the creation (same relay batch, concurrent consumers), so the creator gets the status
+  notification only. The scenarios therefore wait for any notification of the ticket.
+- The end-to-end latency is dominated by the relay polling interval (`OUTBOX_RELAY_INTERVAL_MS`,
+  500 ms); the API, the broker and the consumer add a few milliseconds.
+
+Thresholds were tightened from the first version to about twice the measured p95 so a regression
+of that order fails the run: `smoke` API p95 < 150 ms, `read` list p95 < 150 ms and by-id p95 <
+100 ms, `write` `POST`/`PATCH` p95 < 100 ms, creation → notification p95 < 3 s everywhere.
+
+## 6. Consequences
 
 - One more Logto M2M app and one more gitignored `.env` to fill.
 - Load runs write into the local Prometheus/Tempo (volumes grow; `pnpm infra:down -v` resets).

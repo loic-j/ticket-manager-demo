@@ -1,4 +1,9 @@
-import { ticketChangedV1, ticketCreatedV1, ticketDeletedV1 } from '@ticketmanager/events';
+import {
+  ticketChangedV1,
+  ticketCreatedV1,
+  ticketDeletedV1,
+  ticketDeletedV2,
+} from '@ticketmanager/events';
 import {
   NOTIFICATION_TITLE_MAX_LENGTH,
   notificationFor,
@@ -50,19 +55,49 @@ describe('notificationFor', () => {
     });
   });
 
-  it('keeps the version of edits and deletions that do not notify', () => {
+  it('describes any other edit for the creator, field by field', () => {
     const retitled = ticketChangedV1.create({
-      ticket: { ...ticket, version: 2, title: 'Printer OK' },
-      changes: { title: { from: ticket.title, to: 'Printer OK' } },
+      ticket: { ...ticket, version: 2, title: 'Printer OK', priority: 'low', description: 'x' },
+      changes: {
+        title: { from: ticket.title, to: 'Printer OK' },
+        priority: { from: 'urgent', to: 'low' },
+        description: { from: '', to: 'x' },
+      },
     });
     expect(notificationFor(retitled)).toEqual({
       kind: 'ticket',
       ticketId: ticket.id,
       version: 2,
-      draft: null,
+      draft: {
+        userId: 'u1',
+        kind: 'ticket_updated',
+        title: 'Ticket updated: Printer OK',
+        body: 'Your ticket "Printer OK" has been updated: title "Printer on fire" → "Printer OK", priority urgent → low, description edited.',
+        ticketId: ticket.id,
+      },
     });
-    const deleted = ticketDeletedV1.create({ ticketId: ticket.id, version: 3, deletedBy: 'u1' });
+  });
+
+  it('describes a deletion (v2) for the creator and only keeps the version of a v1 deletion', () => {
+    const deleted = ticketDeletedV2.create({
+      ticket: { ...ticket, version: 2 },
+      version: 3,
+      deletedBy: 'u9',
+    });
     expect(notificationFor(deleted)).toEqual({
+      kind: 'ticket',
+      ticketId: ticket.id,
+      version: 3,
+      draft: {
+        userId: 'u1',
+        kind: 'ticket_deleted',
+        title: 'Ticket deleted: Printer on fire',
+        body: 'Your ticket "Printer on fire" has been deleted.',
+        ticketId: ticket.id,
+      },
+    });
+    const legacy = ticketDeletedV1.create({ ticketId: ticket.id, version: 3, deletedBy: 'u1' });
+    expect(notificationFor(legacy)).toEqual({
       kind: 'ticket',
       ticketId: ticket.id,
       version: 3,

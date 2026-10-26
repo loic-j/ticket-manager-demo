@@ -1,4 +1,4 @@
-import { ticketChangedV1, ticketCreatedV1, ticketDeletedV1 } from '@ticketmanager/events';
+import { ticketChangedV1, ticketCreatedV1, ticketDeletedV2 } from '@ticketmanager/events';
 import { TicketDeletedEvent } from '../../domain/events/ticket-events.js';
 import { createTicket, updateTicket } from '../../domain/ticket.js';
 import { toTicketView } from '../mappers/ticket.mapper.js';
@@ -25,12 +25,16 @@ describe('toIntegrationEvents', () => {
     });
   });
 
-  it('maps a deletion to ticket.deleted with the superseding version and the actor', () => {
+  it('maps a deletion to ticket.deleted v2 with the last state, the superseding version and the actor', () => {
     const { ticket } = createTicket({ title: 'A', description: '', priority: 'low' }, 'u1');
-    const [out] = toIntegrationEvents([new TicketDeletedEvent(ticket.id, 2, 'u3')], 'u3');
+    const [out] = toIntegrationEvents([new TicketDeletedEvent(ticket, 2, 'u3')], 'u3');
     expect(out).toMatchObject({ aggregateType: 'ticket', aggregateId: ticket.id });
-    expect(ticketDeletedV1.is(out!.envelope)).toBe(true);
-    expect(out!.envelope.payload).toEqual({ ticketId: ticket.id, version: 2, deletedBy: 'u3' });
+    expect(ticketDeletedV2.is(out!.envelope)).toBe(true);
+    expect(out!.envelope.payload).toEqual({
+      ticket: toTicketView(ticket),
+      version: 2,
+      deletedBy: 'u3',
+    });
     expect(out!.envelope.actor).toBe('u3');
   });
 });

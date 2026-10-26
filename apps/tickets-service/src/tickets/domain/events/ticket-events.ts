@@ -18,7 +18,8 @@ export class TicketChangedEvent {
 
 export class TicketDeletedEvent {
   constructor(
-    readonly ticketId: string,
+    /** State the ticket had when it was deleted (its `version` is the last stored one). */
+    readonly ticket: Ticket,
     /** Last stored version + 1, so the deletion supersedes every event of the ticket. */
     readonly version: number,
     readonly deletedBy: ActorId,

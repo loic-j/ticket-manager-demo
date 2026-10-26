@@ -4,7 +4,12 @@
  * (`application/mappers/notification.mapper.ts`); the compiler keeps both shapes compatible.
  */
 
-export const NOTIFICATION_KINDS = ['ticket_created', 'ticket_status_changed'] as const;
+export const NOTIFICATION_KINDS = [
+  'ticket_created',
+  'ticket_updated',
+  'ticket_status_changed',
+  'ticket_deleted',
+] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 
 export const EMAIL_DELIVERY_STATUSES = ['pending', 'sent', 'failed'] as const;

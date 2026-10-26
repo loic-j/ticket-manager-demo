@@ -1,5 +1,10 @@
 import type { TicketStatus } from '@ticketmanager/contracts';
-import { ticketChangedV1, ticketCreatedV1, ticketDeletedV1 } from '@ticketmanager/events';
+import {
+  ticketChangedV1,
+  ticketCreatedV1,
+  ticketDeletedV1,
+  ticketDeletedV2,
+} from '@ticketmanager/events';
 import { EmailDeliveryService } from '../services/email-delivery.service.js';
 import {
   CapturingMailer,
@@ -38,6 +43,8 @@ const retitled = (version: number, title: string) =>
     changes: { title: { from: ticket.title, to: title } },
   });
 const deleted = (version: number) =>
+  ticketDeletedV2.create({ ticket: { ...ticket, version: version - 1 }, version, deletedBy: 'u1' });
+const deletedV1 = (version: number) =>
   ticketDeletedV1.create({ ticketId: ticket.id, version, deletedBy: 'u1' });
 
 function setup(users: StaticUserProfiles) {
@@ -96,25 +103,38 @@ describe('HandleTicketEventHandler', () => {
     expect([...repo.rows.values()].map((n) => n.kind)).toEqual(['ticket_status_changed']);
   });
 
-  it('ignores events that produce no notification but still records their version', async () => {
-    const { repo, handler, processed, versions } = setup(knownUser());
+  it('notifies and emails the creator about every edit and deletion', async () => {
+    const { repo, mailer, handler, versions } = setup(knownUser());
     expect(await handler.execute(new HandleTicketEventCommand(retitled(2, 'Printer OK')))).toBe(
-      'ignored',
+      'created',
     );
-    expect(versions.versions.get(ticket.id)).toBe(2);
-    expect(processed.ids.size).toBe(1);
-    expect(await handler.execute(new HandleTicketEventCommand(deleted(3)))).toBe('ignored');
+    expect(await handler.execute(new HandleTicketEventCommand(deleted(3)))).toBe('created');
     expect(versions.versions.get(ticket.id)).toBe(3);
+    expect([...repo.rows.values()].map((n) => n.kind)).toEqual([
+      'ticket_updated',
+      'ticket_deleted',
+    ]);
+    expect(mailer.sent.map((m) => m.subject)).toEqual([
+      'Ticket updated: Printer OK',
+      'Ticket deleted: Printer on fire',
+    ]);
+  });
+
+  it('ignores a v1 deletion (no state to describe) but still records its version', async () => {
+    const { repo, handler, processed, versions } = setup(knownUser());
+    expect(await handler.execute(new HandleTicketEventCommand(deletedV1(3)))).toBe('ignored');
+    expect(versions.versions.get(ticket.id)).toBe(3);
+    expect(processed.ids.size).toBe(1);
     expect(repo.rows.size).toBe(0);
   });
 
   it('treats a status change older than a deletion as stale', async () => {
     const { repo, handler } = setup(knownUser());
-    expect(await handler.execute(new HandleTicketEventCommand(deleted(3)))).toBe('ignored');
+    expect(await handler.execute(new HandleTicketEventCommand(deleted(3)))).toBe('created');
     expect(await handler.execute(new HandleTicketEventCommand(changed(2, 'resolved')))).toBe(
       'stale',
     );
-    expect(repo.rows.size).toBe(0);
+    expect([...repo.rows.values()].map((n) => n.kind)).toEqual(['ticket_deleted']);
   });
 
   it('ignores an unknown event type without touching the inbox', async () => {

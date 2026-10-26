@@ -125,7 +125,8 @@ describe('ticket command handlers', () => {
     expect(await store.findById(id)).toBeNull();
     expect(outbox.events.at(-1)!.envelope).toMatchObject({
       type: 'ticket.deleted',
-      payload: { ticketId: id, version: 2 },
+      version: 2,
+      payload: { ticket: { id, version: 1, title: 'A' }, version: 2, deletedBy: 'user_a' },
     });
 
     await expect(handler.execute(new DeleteTicketCommand(id, 'user_a'))).rejects.toBeInstanceOf(

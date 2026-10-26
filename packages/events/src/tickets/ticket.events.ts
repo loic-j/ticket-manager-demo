@@ -34,23 +34,33 @@ export const ticketChangedV1 = defineEvent(
   z.object({ ticket: ticketSchema, changes: ticketChangesSchema }),
 );
 
+/**
+ * Version *after* a deletion: the last stored version + 1, so the event supersedes every
+ * `ticket.created` / `ticket.changed` of that ticket in the consumer's staleness check.
+ */
+const supersedingVersion = z.number().int().positive();
+
+/** @deprecated Superseded by {@link ticketDeletedV2}, which carries the deleted ticket's state. */
 export const ticketDeletedV1 = defineEvent(
   'ticket.deleted',
   1,
-  z.object({
-    ticketId: z.uuid(),
-    /**
-     * Version *after* the deletion: the last stored version + 1, so the event supersedes every
-     * `ticket.created` / `ticket.changed` of that ticket in the consumer's staleness check.
-     */
-    version: z.number().int().positive(),
-    deletedBy: z.string().min(1),
-  }),
+  z.object({ ticketId: z.uuid(), version: supersedingVersion, deletedBy: z.string().min(1) }),
 );
 
-/** Version carried by any ticket event, for consumer-side staleness checks. */
+/** Deletion with the full state the ticket had when it was deleted (`ticket.version` = last stored). */
+export const ticketDeletedV2 = defineEvent(
+  'ticket.deleted',
+  2,
+  z.object({ ticket: ticketSchema, version: supersedingVersion, deletedBy: z.string().min(1) }),
+);
+
+/**
+ * Version carried by any ticket event, for consumer-side staleness checks: the superseding
+ * `version` of a deletion when present, otherwise the version of the carried ticket.
+ */
 export function ticketEventVersion(
-  payload: { ticket: { version: number } } | { version: number },
+  payload: { ticket: { version: number }; version?: number } | { version: number },
 ): number {
-  return 'ticket' in payload ? payload.ticket.version : payload.version;
+  if ('version' in payload && payload.version !== undefined) return payload.version;
+  return (payload as { ticket: { version: number } }).ticket.version;
 }

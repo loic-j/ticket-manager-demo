@@ -101,8 +101,8 @@ Nothing in the pipeline guarantees delivery order (several relays, concurrent co
 redeliveries). Instead every ticket carries an optimistic-concurrency `version` (1 at creation,
 +1 per change; a concurrent update is retried on the fresh state, then answered `409`), and
 every ticket event carries the **full state** with that version (`ticket.created`,
-`ticket.changed` with `changes` = `{ field: { from, to } }` per edited field, `ticket.deleted` with the superseding
-version). A consumer that keeps state per ticket records the last version it applied
+`ticket.changed` with `changes` = `{ field: { from, to } }` per edited field, `ticket.deleted` v2 with the
+last state and the superseding version). A consumer that keeps state per ticket records the last version it applied
 (`TICKET_VERSIONS.advance()` in notifications-service, inside the same transaction as its side
 effects) and ignores any event with a lower or equal version. A late or replayed event can
 therefore never overwrite a newer state, and no event has to wait for a missing predecessor.
@@ -123,7 +123,8 @@ and retried by the email-retry worker process (`EMAIL_MAX_ATTEMPTS`; image
 so a Logto or SMTP outage delays them instead of losing them. The handler is
 idempotent through an **inbox** table (`processed_events`, claimed in the same transaction as the
 notification row), so the at-least-once delivery never produces a second notification or email.
-`ticket.created` and `ticket.changed` (status edits) notify the ticket creator; the recipient's email is
+Every `ticket.created`, `ticket.changed` (status changes and other edits have their own wording)
+and `ticket.deleted` notifies and emails the ticket creator; the recipient's email is
 resolved through directory-service (synchronous `GET /users/:id` with a machine-to-machine token,
 or `NOTIFICATIONS_DEV_FALLBACK_EMAIL` locally when no M2M credentials are set) and sent over SMTP
 to Mailpit. The service also exposes `GET /notifications` and `POST /notifications/:id/read`,

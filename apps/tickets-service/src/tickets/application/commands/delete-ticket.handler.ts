@@ -29,7 +29,7 @@ export class DeleteTicketHandler implements ICommandHandler<DeleteTicketCommand,
         throw new TicketNotFoundError(ticketId);
       }
       // The deletion carries the next version so it supersedes every event of the ticket.
-      const event = new TicketDeletedEvent(ticketId, deleted.version + 1, actor);
+      const event = new TicketDeletedEvent(deleted, deleted.version + 1, actor);
       await this.outbox.append(toIntegrationEvents([event], actor));
     });
     await this.cache.evict(ticketId); // after commit

@@ -16,7 +16,9 @@ datasource db {
 // Mirror of NOTIFICATION_KINDS / NOTIFICATION_DELIVERY_STATUSES in @ticketmanager/contracts.
 enum NotificationKind {
   ticket_created
+  ticket_updated
   ticket_status_changed
+  ticket_deleted
 }
 
 enum DeliveryStatus {

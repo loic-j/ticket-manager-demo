@@ -1,4 +1,4 @@
-import { ticketChangedV1, ticketCreatedV1, ticketDeletedV1 } from '@ticketmanager/events';
+import { ticketChangedV1, ticketCreatedV1, ticketDeletedV2 } from '@ticketmanager/events';
 import {
   TicketChangedEvent,
   TicketCreatedEvent,
@@ -15,7 +15,7 @@ const AGGREGATE = 'ticket';
 export function toIntegrationEvents(events: TicketDomainEvent[], actor: ActorId): OutboxEvent[] {
   return events.map((event) => ({
     aggregateType: AGGREGATE,
-    aggregateId: event instanceof TicketDeletedEvent ? event.ticketId : event.ticket.id,
+    aggregateId: event.ticket.id,
     envelope: toEnvelope(event, actor),
   }));
 }
@@ -31,8 +31,8 @@ function toEnvelope(event: TicketDomainEvent, actor: ActorId) {
       meta,
     );
   }
-  return ticketDeletedV1.create(
-    { ticketId: event.ticketId, version: event.version, deletedBy: event.deletedBy },
+  return ticketDeletedV2.create(
+    { ticket: toTicketView(event.ticket), version: event.version, deletedBy: event.deletedBy },
     meta,
   );
 }

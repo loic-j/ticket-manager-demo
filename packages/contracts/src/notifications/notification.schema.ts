@@ -1,6 +1,11 @@
 import { z } from 'zod';
 
-export const NOTIFICATION_KINDS = ['ticket_created', 'ticket_status_changed'] as const;
+export const NOTIFICATION_KINDS = [
+  'ticket_created',
+  'ticket_updated',
+  'ticket_status_changed',
+  'ticket_deleted',
+] as const;
 export const notificationKindSchema = z.enum(NOTIFICATION_KINDS);
 export type NotificationKind = z.infer<typeof notificationKindSchema>;
 

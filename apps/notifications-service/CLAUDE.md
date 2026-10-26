@@ -11,8 +11,8 @@ Same rules and layout as `apps/tickets-service/CLAUDE.md` (read it first). Speci
   deleting the queue first (RabbitMQ refuses to redeclare).
 - Idempotency and ordering: `PROCESSED_EVENTS.claim(eventId)` and `TICKET_VERSIONS.advance(ticketId,
 version)` run inside `UNIT_OF_WORK.run()` with the notification insert, for **every** known
-  ticket event, including those producing no notification (`ticket.deleted`, edits without a
-  status change), so a late lower version is `'stale'` whatever the order. A duplicate returns
+  ticket event, including the rare ones producing no notification (legacy `ticket.deleted` v1),
+  so a late lower version is `'stale'` whatever the order. A duplicate returns
   `'duplicate'`, an older version `'stale'`, an unknown type or an invalid payload `'ignored'`
   without any write; all are acked. The email is sent after the commit by `EmailDeliveryService`
   (never throws, records `email` sent/failed + attempts, at-least-once) and the email retry
@@ -35,8 +35,12 @@ version)` run inside `UNIT_OF_WORK.run()` with the notification insert, for **ev
 - Repository writes are field-targeted (`insert`, `updateEmail`, `markRead`) so the email job
   and the user's "mark as read" never overwrite each other.
 - Which event produces which notification lives in
-  `application/commands/ticket-event-notifications.ts` (pure, unit-tested): payloads are
-  validated with the event schemas, computed titles are truncated to the column bound (200).
+  `application/commands/ticket-event-notifications.ts` (pure, unit-tested): the creator is
+  notified of every creation (`ticket_created`), edit (`ticket_status_changed` when the status
+  moved, otherwise `ticket_updated` listing the changed fields) and deletion (`ticket_deleted`,
+  from `ticket.deleted` v2 which carries the last state; a v1 deletion only advances the
+  version). Payloads are validated with the event schemas, computed titles are truncated to the
+  column bound (200).
 - Recipient email comes from `USER_DIRECTORY`: `HttpUserDirectory` calls directory-service
   (`GET /users/:id`, `DIRECTORY_API_URL`) with an M2M token for `DIRECTORY_API_RESOURCE` through
   `ServiceHttpClient` from `@ticketmanager/nest-common` (ADR 002). Without

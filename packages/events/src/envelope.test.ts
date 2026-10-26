@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { parseEnvelope } from './envelope.js';
-import { ticketChangedV1, ticketCreatedV1, ticketEventVersion } from './tickets/ticket.events.js';
+import {
+  ticketChangedV1,
+  ticketCreatedV1,
+  ticketDeletedV2,
+  ticketEventVersion,
+} from './tickets/ticket.events.js';
 
 const ticket = {
   id: '2f6a3c4e-5b1d-4e8a-9c7f-1a2b3c4d5e6f',
@@ -44,5 +49,17 @@ describe('defineEvent', () => {
     const parsed = ticketChangedV1.schema.parse(JSON.parse(JSON.stringify(event)));
     expect(parsed).toEqual(event);
     expect(ticketEventVersion(parsed.payload)).toBe(2);
+  });
+
+  it('ticket.deleted v2 carries the last state and a superseding version', () => {
+    const event = ticketDeletedV2.create({
+      ticket: { ...ticket, version: 2 },
+      version: 3,
+      deletedBy: 'u',
+    });
+    expect(ticketEventVersion(event.payload)).toBe(3);
+    expect(() =>
+      ticketDeletedV2.create({ ticket: { ...ticket, version: 2 }, version: 0, deletedBy: 'u' }),
+    ).toThrow();
   });
 });

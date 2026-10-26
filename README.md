@@ -116,7 +116,8 @@ pnpm docker:down
   services with a Logto access token per service. Every service route requires a valid token.
 - **Events**: a command writes the ticket and its integration event in one transaction (outbox);
   the relay publishes to RabbitMQ; notifications-service consumes idempotently and emails the
-  creator. Events carry the full state and a version, so order does not matter.
+  creator on every creation, edit and deletion. Events carry the full state and a version, so
+  order does not matter.
 - **Directory**: the only synchronous call between services, a read-only facade over Logto.
 - **Cache**: tickets reads go through Valkey (60 s, evicted after every change); a cache outage
   only slows reads down.

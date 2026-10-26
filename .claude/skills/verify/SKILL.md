@@ -1,6 +1,6 @@
 ---
 name: verify
-description: Run the full verification suite (build, types, lint, unit, e2e, prettier check) in a subagent and report PASS/FAIL with error excerpts. Use after code changes and before commits.
+description: Run the full verification suite (build, types, lint, unit, e2e, prettier check, README consistency) in a subagent and report PASS/FAIL with error excerpts. Use after code changes and before commits.
 context: fork
 agent: verify
 ---

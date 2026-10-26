@@ -6,8 +6,8 @@ synchronously, see ADR 002), the tickets outbox relay as its own package (`apps/
 Next.js 16 BFF (`apps/web`), shared packages (`contracts` = HTTP Zod schemas, `events` =
 integration events, `nest-common` = auth + service-to-service HTTP client, `outbox` = relay +
 table contract), Logto + PostgreSQL + RabbitMQ + Mailpit in Docker (`infra/`). Roadmap: `docs/architecture/`.
-Architecture, setup and design notes live in `README.md` and `docs/`; this file holds the rules and
-commands that are not obvious from the code.
+Setup and run instructions live in `README.md`, architecture in `docs/architecture/` (overview +
+ADRs); this file holds the rules and commands that are not obvious from the code.
 
 ## Language
 
@@ -122,4 +122,11 @@ every edited file through a hook; do not hand-format.
 - After touching `apps/tickets-service`, run the `architecture-reviewer` agent; after any code change, run the
   `verify` agent (or the commands above) before reporting completion.
 - Use the `add-domain-module` skill to scaffold a new bounded context in the API.
-- Plans and design documents go to `docs/`; keep `README.md` current when commands or setup change.
+- Plans and design documents go to `docs/`. Architecture explanations go to
+  `docs/architecture/overview.md` (and a new ADR for a decision), never to the README.
+- **README**: part of the definition of done. After every change, re-read `README.md` and fix
+  whatever it makes wrong or incomplete (a command, a port, an env variable, a Logto step, a
+  container, a troubleshooting entry). It stays short and easy to follow: only what is needed to
+  set the project up, run it (locally and in Docker), the everyday commands, a five-line "how it
+  works" and the troubleshooting table. Prefer tables and numbered steps to prose; no
+  implementation details or design rationale there (link to `docs/architecture/` instead).

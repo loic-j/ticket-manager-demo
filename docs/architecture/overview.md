@@ -193,6 +193,39 @@ node-redis (`redis`), the official client; a Redis 8 image works unchanged (`CAC
 pnpm --filter @ticketmanager/tickets-service test:int       # also covers RedisCacheStore against Valkey
 ```
 
+## Observability (OpenTelemetry + Grafana)
+
+See ADR 004 for the decision. Signal flow:
+
+```
+web (Next.js, @vercel/otel) ──traceparent──► services ──traceparent (AMQP headers)──► consumer
+   │                                            │  pino logs (trace_id) + OTLP logs, metrics, spans
+   └──────────────── OTLP/HTTP :4318 ───────────┴──────────────► lgtm (Collector → Tempo / Prometheus / Loki)
+docker containers (RabbitMQ, PostgreSQL, Valkey, Logto…) ──Alloy──► Loki (logs) + Prometheus (exporters)
+```
+
+- Every Node process starts with `node --import @ticketmanager/telemetry/register`: ESM hook,
+  `.env` read, Node SDK with the auto-instrumentations (`http`, `express`, `nestjs-core`, `pg`,
+  `amqplib`, `redis`, `undici`, `pino`, `runtime-node`; `fs`/`dns`/`net` off, `/health` ignored).
+  `OTEL_SERVICE_NAME` names the process (defaults to the package name under pnpm, suffixed by the
+  entry file: `notifications-service-email-retry`). `OTEL_SDK_DISABLED=true` turns it off.
+- Logs: pino through `nestjs-pino` (`createLoggerModule()` + `useTelemetryLogger(app)`); JSON with
+  `trace_id` / `span_id`, pretty in the terminal with `LOG_PRETTY=true`, one line per request
+  (4xx warn, 5xx error, `/health` silent), exported over OTLP so host processes appear in Loki.
+- Correlation across the broker: `PrismaOutbox` stamps the envelope `correlationId` with the
+  request's trace id; `amqplib` propagates `traceparent` in the message headers, so the consumer
+  span continues the trace that created the ticket and the consumer annotates it with
+  `event.type` / `event.id`. The guard adds `enduser.id` (Logto `sub`) to authenticated spans.
+- Business metrics (declared in `@ticketmanager/telemetry`, recorded by adapters):
+  `ticketmanager.outbox.*` (published, publish_failures, quarantined, batch_size),
+  `ticketmanager.cache.operations{operation,result}`, `ticketmanager.notifications.events{result,event.type}`,
+  `ticketmanager.notifications.emails{outcome}`, `ticketmanager.notifications.email_retry.*`,
+  `ticketmanager.directory.lookups{source,outcome}`. HTTP RED metrics
+  (`http_server_request_duration_seconds`) and Node runtime metrics come from the instrumentations.
+- Backend: `infra/compose/observability.yml` (`grafana/otel-lgtm`, Alloy, exporters), Alloy config
+  in `infra/observability/alloy.alloy`, dashboards in `infra/observability/dashboards/`
+  (provisioned, editable in Grafana, export the JSON back to the repo to keep a change).
+
 ## Docker
 
 Every Dockerfile builds from the repo root with `turbo prune`, so an image only contains its

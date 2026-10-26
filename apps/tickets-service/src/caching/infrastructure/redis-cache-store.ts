@@ -1,4 +1,5 @@
 import { Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
+import { ATTR, cacheMetrics, count } from '@ticketmanager/telemetry';
 import { createClient, type RedisClientType } from 'redis';
 import type { CacheStore } from '../application/ports/cache-store.js';
 import type { CachingConfig } from '../caching.config.js';
@@ -46,36 +47,56 @@ export class RedisCacheStore implements CacheStore, OnModuleInit, OnModuleDestro
   }
 
   async get<T>(key: string): Promise<T | undefined> {
-    if (!this.client.isReady) return undefined;
+    if (!this.client.isReady) {
+      this.record('get', 'skipped');
+      return undefined;
+    }
     try {
       const raw = await this.bounded(this.client.get(this.key(key)));
+      this.record('get', raw === null ? 'miss' : 'hit');
       return raw === null ? undefined : (JSON.parse(raw) as T);
     } catch (error) {
+      this.record('get', 'error');
       this.unavailable(`get ${key}: ${String(error)}`);
       return undefined;
     }
   }
 
   async set<T>(key: string, value: T, ttlMs: number): Promise<void> {
-    if (!this.client.isReady) return;
+    if (!this.client.isReady) {
+      this.record('set', 'skipped');
+      return;
+    }
     try {
       await this.bounded(
         this.client.set(this.key(key), JSON.stringify(value), {
           expiration: { type: 'PX', value: ttlMs },
         }),
       );
+      this.record('set', 'ok');
     } catch (error) {
+      this.record('set', 'error');
       this.unavailable(`set ${key}: ${String(error)}`);
     }
   }
 
   async delete(...keys: string[]): Promise<void> {
-    if (keys.length === 0 || !this.client.isReady) return;
+    if (keys.length === 0) return;
+    if (!this.client.isReady) {
+      this.record('delete', 'skipped');
+      return;
+    }
     try {
       await this.bounded(this.client.del(keys.map((k) => this.key(k))));
+      this.record('delete', 'ok');
     } catch (error) {
+      this.record('delete', 'error');
       this.unavailable(`delete ${keys.join(', ')}: ${String(error)}`);
     }
+  }
+
+  private record(operation: 'get' | 'set' | 'delete', result: string): void {
+    count(cacheMetrics.operations, { [ATTR.operation]: operation, [ATTR.result]: result });
   }
 
   private key(key: string): string {

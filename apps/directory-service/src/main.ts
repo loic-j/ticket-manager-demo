@@ -1,10 +1,13 @@
 import { StandardSchemaValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import { useTelemetryLogger } from '@ticketmanager/telemetry';
 import { AppModule } from './app.module.js';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // Logs are buffered until pino takes over, so startup lines are structured too.
+  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  useTelemetryLogger(app);
   const config = app.get(ConfigService);
 
   // Validates any @Body()/@Query()/@Param() that declares a `schema` (Zod, Valibot, ...).

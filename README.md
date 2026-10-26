@@ -79,6 +79,13 @@ Then open http://localhost:3000 and sign in. One package at a time:
 | Mailpit (sent emails)           | http://localhost:8025                      | none                              |
 | Service health                  | http://localhost:3001/health, :3002, :3003 | none                              |
 
+**Observability**: Grafana (http://localhost:3030) receives traces, metrics and logs from every
+process (OpenTelemetry, pushed to `localhost:4318`) and from the infrastructure containers (Alloy).
+Start with **Dashboards → Ticket Manager**, or **Explore**: Loki `{service_name="tickets-service"}`
+for logs (click a `trace_id` to open the trace in Tempo), Tempo search by service for traces (a
+trace crosses the web, the API, PostgreSQL, the relay, RabbitMQ and the consumer), Prometheus for
+metrics. The terminal shows the same logs pretty-printed (`LOG_PRETTY=true` in each `.env`).
+
 Stop the infrastructure with `pnpm infra:down` (data stays in Docker volumes).
 
 ## Run everything in Docker
@@ -128,11 +135,12 @@ decisions are in the ADRs next to it; the coding rules are in `CLAUDE.md`.
 
 ## Troubleshooting
 
-| Symptom                                              | Cause and fix                                                                                                                         |
-| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Web shows `Logto requester error: [status=400]`      | A Logto API resource is missing, or your session predates it. Check the three resources, then sign out and in again.                  |
-| User names show as raw ids                           | directory-service cannot read Logto: the M2M app lacks the **Logto Management API access** role, or `LOGTO_M2M_*` is empty.           |
-| No email after creating a ticket                     | Check RabbitMQ (`notifications.tickets` must have a consumer), then Mailpit, then the `notifications` table (`email`, `email_error`). |
-| `invalid_grant` or 401 everywhere                    | Sign out and in again; if it persists, clear the cookies of `localhost:3000`.                                                         |
-| Relay logs `Publishing … failed, next attempt in …`  | RabbitMQ is down; rows stay in `outbox_messages` and are published when it is back.                                                   |
-| `Cache unavailable, reads fall back to the database` | Valkey is down; the API keeps working. `CACHE_ENABLED=false` disables the cache.                                                      |
+| Symptom                                              | Cause and fix                                                                                                                                                                                                                                    |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Web shows `Logto requester error: [status=400]`      | A Logto API resource is missing, or your session predates it. Check the three resources, then sign out and in again.                                                                                                                             |
+| User names show as raw ids                           | directory-service cannot read Logto: the M2M app lacks the **Logto Management API access** role, or `LOGTO_M2M_*` is empty.                                                                                                                      |
+| No email after creating a ticket                     | Check RabbitMQ (`notifications.tickets` must have a consumer), then Mailpit, then the `notifications` table (`email`, `email_error`).                                                                                                            |
+| `invalid_grant` or 401 everywhere                    | Sign out and in again; if it persists, clear the cookies of `localhost:3000`.                                                                                                                                                                    |
+| Relay logs `Publishing … failed, next attempt in …`  | RabbitMQ is down; rows stay in `outbox_messages` and are published when it is back.                                                                                                                                                              |
+| `Cache unavailable, reads fall back to the database` | Valkey is down; the API keeps working. `CACHE_ENABLED=false` disables the cache.                                                                                                                                                                 |
+| Nothing in Grafana for a service                     | Check that the `lgtm` container is healthy (`docker compose -f infra/docker-compose.yml ps`) and that the process was started through `pnpm dev` / `start:prod` (the `--import` preload). `OTEL_SDK_DISABLED=true` in a `.env` also silences it. |

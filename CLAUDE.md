@@ -70,6 +70,14 @@ every edited file through a hook; do not hand-format.
   by that entry point and the HTTP `AppModule` must not import it.
 - **Prisma adapters use `this.prisma.db.<model>`**, never `this.prisma.<model>`, so they join the
   ambient transaction of the unit of work.
+- **Telemetry (ADR 004)**: every Node process starts with
+  `node --import @ticketmanager/telemetry/register` (dev scripts, `start:prod`, Dockerfile `CMD`),
+  imports `createLoggerModule()` in its root module and calls `useTelemetryLogger(app)` in its
+  `main*.ts`. Log through the Nest `Logger` (pino behind it, `trace_id` added automatically),
+  never `console.*`. Business metrics and span attributes are declared in
+  `@ticketmanager/telemetry` and recorded from `infrastructure/` or `presentation/` adapters only
+  (`domain/` and `application/` know nothing about telemetry). `OTEL_SERVICE_NAME` names the
+  process; `OTEL_SDK_DISABLED=true` switches telemetry off.
 - **Databases stay separate**: one PostgreSQL per service (`tickets-db`, `notifications-db`) and
   one for Logto; directory-service owns no database by design (cache only). A service never reads
   another service's database; it consumes its events.

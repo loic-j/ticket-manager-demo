@@ -6,6 +6,7 @@ import {
   type OnModuleInit,
 } from '@nestjs/common';
 import { parseEnvelope, type EventEnvelope } from '@ticketmanager/events';
+import { outboxMetrics } from '@ticketmanager/telemetry';
 import type pg from 'pg';
 import { EVENT_PUBLISHER, type EventPublisher } from './event-publisher.js';
 import { OutboxDatabase } from './outbox-database.js';
@@ -126,6 +127,8 @@ export class OutboxRelay implements OnModuleInit, OnModuleDestroy {
       );
       this.logger.error(`Outbox message ${id} quarantined: ${error}`);
     }
+    outboxMetrics.quarantined.add(poison.length);
+    outboxMetrics.batchSize.record(rows.length);
     const ids = envelopes.map((e) => e.id);
     if (ids.length === 0) return rows.length;
 
@@ -142,6 +145,7 @@ export class OutboxRelay implements OnModuleInit, OnModuleDestroy {
       this.recordPublishFailure(ids.length, message);
       return 0;
     }
+    outboxMetrics.published.add(ids.length);
     this.backoffMs = 0;
     this.backoffUntil = 0;
     await client.query(
@@ -154,6 +158,7 @@ export class OutboxRelay implements OnModuleInit, OnModuleDestroy {
 
   /** Exponential backoff: relay interval, doubled per consecutive failure, capped. */
   private recordPublishFailure(count: number, message: string): void {
+    outboxMetrics.publishFailures.add(1);
     this.backoffMs = Math.min(this.backoffMs * 2 || this.config.relayIntervalMs, MAX_BACKOFF_MS);
     this.backoffUntil = Date.now() + this.backoffMs;
     this.logger.warn(

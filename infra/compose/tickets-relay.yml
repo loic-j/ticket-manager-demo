@@ -15,6 +15,9 @@ services:
       rabbitmq:
         condition: service_healthy
     environment:
+      OTEL_SERVICE_NAME: tickets-relay-service
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://lgtm:4318
+      LOG_LEVEL: info
       DATABASE_URL: postgresql://tickets:tickets@tickets-db:5432/tickets
       RABBITMQ_URL: amqp://ticketmanager:ticketmanager@rabbitmq:5672
       EVENTS_EXCHANGE: ticketmanager.events

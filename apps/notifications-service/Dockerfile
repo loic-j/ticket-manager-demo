@@ -42,11 +42,14 @@ RUN pnpm install --frozen-lockfile --prod
 COPY --from=builder /repo/packages/contracts/dist ./packages/contracts/dist
 COPY --from=builder /repo/packages/nest-common/dist ./packages/nest-common/dist
 COPY --from=builder /repo/packages/events/dist ./packages/events/dist
+COPY --from=builder /repo/packages/telemetry/dist ./packages/telemetry/dist
 COPY --from=builder /repo/apps/notifications-service/dist ./apps/notifications-service/dist
 USER node
 EXPOSE 3002
-CMD ["node", "apps/notifications-service/dist/main.js"]
+WORKDIR /repo/apps/notifications-service
+# The telemetry preload (OpenTelemetry SDK + pino) must load before the application code.
+CMD ["node", "--import", "@ticketmanager/telemetry/register", "dist/main.js"]
 
 # 3c. Email retry worker: same code and dependencies, headless entry point, no port.
 FROM runner AS email-retry
-CMD ["node", "apps/notifications-service/dist/main.email-retry.js"]
+CMD ["node", "--import", "@ticketmanager/telemetry/register", "dist/main.email-retry.js"]

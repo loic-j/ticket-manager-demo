@@ -17,7 +17,8 @@
   compile error there); `application/`
   `@nestjs/common`, `@nestjs/cqrs`, `@ticketmanager/events` and the cross-cutting ports in
   `src/messaging/application/ports` and `src/caching/application/ports` (explicit exceptions);
-  `infrastructure/` anything; `presentation/` `@nestjs/*` only (no Prisma).
+  `infrastructure/` anything; `presentation/` `@nestjs/*` and `@ticketmanager/telemetry`
+  (metrics, `annotateSpan`) only (no Prisma).
   Prisma row mapping lives in `infrastructure/<name>-row.mapper.ts`, shared by both adapters.
 - Events: a handler maps domain events with `toIntegrationEvents()` and appends them to the
   `OUTBOX` inside `UNIT_OF_WORK.run()` together with the aggregate write. Read-modify-write

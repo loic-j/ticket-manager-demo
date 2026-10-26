@@ -6,6 +6,7 @@ import {
   type OnModuleInit,
 } from '@nestjs/common';
 import { CommandBus } from '@nestjs/cqrs';
+import { notificationMetrics } from '@ticketmanager/telemetry';
 import { RetryPendingEmailsCommand } from '../application/commands/index.js';
 import { NOTIFICATIONS_CONFIG, type NotificationsConfig } from '../notifications.config.js';
 
@@ -48,10 +49,13 @@ export class EmailRetryJob implements OnModuleInit, OnModuleDestroy {
 
   /** @returns the number of notifications retried; a failed run is logged and counts as 0. */
   async run(now = new Date()): Promise<number> {
+    notificationMetrics.emailRetryRuns.add(1);
     try {
-      return await this.commandBus.execute<RetryPendingEmailsCommand, number>(
+      const retried = await this.commandBus.execute<RetryPendingEmailsCommand, number>(
         new RetryPendingEmailsCommand(now),
       );
+      notificationMetrics.emailRetried.record(retried);
+      return retried;
     } catch (error) {
       this.logger.error(`Email retry run failed: ${String(error)}`);
       return 0;

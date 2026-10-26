@@ -7,6 +7,7 @@ import {
   type ExecutionContext,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { trace } from '@opentelemetry/api';
 import { errors as joseErrors } from 'jose';
 import type { AuthenticatedRequest } from './authenticated-request.js';
 import { JwtVerifier } from './jwt-verifier.js';
@@ -46,6 +47,8 @@ export class AccessTokenGuard implements CanActivate {
 
     try {
       req.user = await this.jwtVerifier.verify(header.slice(BEARER_PREFIX.length));
+      // Lets a trace be searched by user; no-op without an OpenTelemetry SDK.
+      trace.getActiveSpan()?.setAttribute('enduser.id', req.user.sub);
     } catch (error) {
       if (isVerifierUnavailable(error)) {
         this.logger.error(`Token verification unavailable: ${String(error)}`);

@@ -1,6 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { directoryUserSchema, type DirectoryUser } from '@ticketmanager/contracts';
 import { ServiceHttpClient, logtoClientCredentials } from '@ticketmanager/nest-common';
+import { ATTR, count, directoryMetrics } from '@ticketmanager/telemetry';
 import { z } from 'zod';
 import type { UserDirectory } from '../application/ports/user-directory.js';
 import type { UsersConfig } from '../users.config.js';
@@ -47,9 +48,19 @@ export class LogtoUserDirectory implements UserDirectory {
       this.warnOnce();
       return null;
     }
-    const res = await this.http.request(`/api/users/${encodeURIComponent(id)}`);
-    if (res.status === 404) return null;
-    if (!res.ok) throw new Error(`Logto user lookup failed: ${res.status}`);
+    const res = await this.http.request(`/api/users/${encodeURIComponent(id)}`).catch((error) => {
+      this.record('error');
+      throw error;
+    });
+    if (res.status === 404) {
+      this.record('unknown');
+      return null;
+    }
+    if (!res.ok) {
+      this.record('error');
+      throw new Error(`Logto user lookup failed: ${res.status}`);
+    }
+    this.record('found');
     const user = logtoUserSchema.parse(await res.json());
     // A malformed stored address must not turn the whole batch into a 500: it becomes `null`.
     const email = emailSchema.safeParse(user.primaryEmail);
@@ -85,6 +96,10 @@ export class LogtoUserDirectory implements UserDirectory {
       Array.from({ length: Math.min(LOOKUP_CONCURRENCY, ids.length) }, () => worker()),
     );
     return results.filter((user): user is DirectoryUser => user !== null);
+  }
+
+  private record(outcome: 'found' | 'unknown' | 'error'): void {
+    count(directoryMetrics.lookups, { [ATTR.source]: 'logto', [ATTR.outcome]: outcome });
   }
 
   private warnOnce(): void {

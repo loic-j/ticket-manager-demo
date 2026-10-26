@@ -32,7 +32,10 @@ COPY --from=pruner /repo/out/pnpm-lock.yaml ./pnpm-lock.yaml
 RUN pnpm install --frozen-lockfile --prod
 COPY --from=builder /repo/packages/contracts/dist ./packages/contracts/dist
 COPY --from=builder /repo/packages/nest-common/dist ./packages/nest-common/dist
+COPY --from=builder /repo/packages/telemetry/dist ./packages/telemetry/dist
 COPY --from=builder /repo/apps/directory-service/dist ./apps/directory-service/dist
 USER node
 EXPOSE 3003
-CMD ["node", "apps/directory-service/dist/main.js"]
+WORKDIR /repo/apps/directory-service
+# The telemetry preload (OpenTelemetry SDK + pino) must load before the application code.
+CMD ["node", "--import", "@ticketmanager/telemetry/register", "dist/main.js"]

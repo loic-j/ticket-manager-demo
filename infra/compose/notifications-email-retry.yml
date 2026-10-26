@@ -22,6 +22,9 @@ services:
     extra_hosts:
       - 'host.docker.internal:host-gateway'
     environment:
+      OTEL_SERVICE_NAME: notifications-service-email-retry
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://lgtm:4318
+      LOG_LEVEL: info
       # Local stack: enables the dev fallbacks when no M2M app is configured; production
       # deployments set NODE_ENV=production (the image default) and require the M2M app.
       NODE_ENV: development

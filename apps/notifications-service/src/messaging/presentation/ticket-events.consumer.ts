@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { CommandBus } from '@nestjs/cqrs';
 import { parseEnvelope } from '@ticketmanager/events';
+import { ATTR, annotateSpan, count, notificationMetrics } from '@ticketmanager/telemetry';
 import amqp, { type Channel, type ChannelModel, type ConsumeMessage } from 'amqplib';
 import { HandleTicketEventCommand } from '../../notifications/application/commands/index.js';
 import { CONSUMER_CONFIG, type ConsumerConfig } from '../messaging.config.js';
@@ -151,11 +152,21 @@ export class TicketEventsConsumer implements OnModuleInit, OnModuleDestroy {
       this.safe(() => channel.nack(message, false, false));
       return;
     }
+    annotateSpan({
+      'event.type': envelope.type,
+      'event.id': envelope.id,
+      ...(envelope.correlationId ? { 'event.correlation_id': envelope.correlationId } : {}),
+    });
     try {
-      const result = await this.commandBus.execute(new HandleTicketEventCommand(envelope));
+      const result: string = await this.commandBus.execute(new HandleTicketEventCommand(envelope));
+      count(notificationMetrics.events, { [ATTR.result]: result, [ATTR.eventType]: envelope.type });
       this.logger.debug(`${envelope.type} ${envelope.id}: ${result}`);
       this.safe(() => channel.ack(message));
     } catch (error) {
+      count(notificationMetrics.events, {
+        [ATTR.result]: 'failed',
+        [ATTR.eventType]: envelope.type,
+      });
       const deliveries = Number(message.properties.headers?.['x-delivery-count'] ?? 0) + 1;
       this.logger.warn(
         `${envelope.type} ${envelope.id} failed (delivery ${deliveries}): ${String(error)}`,

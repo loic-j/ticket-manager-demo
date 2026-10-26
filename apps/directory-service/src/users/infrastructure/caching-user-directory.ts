@@ -1,4 +1,5 @@
 import type { DirectoryUser } from '@ticketmanager/contracts';
+import { ATTR, count, directoryMetrics } from '@ticketmanager/telemetry';
 import type { UserDirectory } from '../application/ports/user-directory.js';
 
 export interface CacheOptions {
@@ -47,6 +48,10 @@ export class CachingUserDirectory implements UserDirectory {
     for (const id of ids) {
       const cached = this.read(id);
       if (cached !== undefined) {
+        count(directoryMetrics.lookups, {
+          [ATTR.source]: 'cache',
+          [ATTR.outcome]: cached ? 'found' : 'unknown',
+        });
         resolved.set(id, cached);
         continue;
       }

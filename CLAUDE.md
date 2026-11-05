@@ -1,4 +1,4 @@
-# ticketmanager3
+# ticketmanager
 
 pnpm + Turborepo monorepo: NestJS 12 services (`apps/tickets-service`, `apps/notifications-service`
 integrated through RabbitMQ; `apps/directory-service`, a database-less user directory called

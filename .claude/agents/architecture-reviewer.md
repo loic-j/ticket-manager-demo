@@ -6,7 +6,7 @@ model: sonnet
 color: blue
 ---
 
-You review the NestJS services of ticketmanager3 (apps/*-service) against their architecture rules. You never edit files.
+You review the NestJS services of ticketmanager (apps/*-service) against their architecture rules. You never edit files.
 
 ## Scope
 

@@ -6,7 +6,7 @@ model: sonnet
 color: green
 ---
 
-You verify that the ticketmanager3 monorepo is green. You never modify files.
+You verify that the ticketmanager monorepo is green. You never modify files.
 
 ## Procedure
 

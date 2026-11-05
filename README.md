@@ -1,4 +1,4 @@
-# ticketmanager3
+# ticketmanager
 
 A small ticketing system built as a pnpm + Turborepo monorepo: a Next.js web app, three NestJS
 services (tickets, notifications, user directory) talking through RabbitMQ, and shared Zod
